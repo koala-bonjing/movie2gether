@@ -14,6 +14,9 @@ export interface RoomHeaderProps {
   drift?: number;
   onSyncNow?: () => void;
   onLeave: () => void;
+  chatOpen?: boolean;
+  onToggleChat?: () => void;
+  unreadCount?: number;
 }
 
 export function RoomHeader({
@@ -24,6 +27,9 @@ export function RoomHeader({
   drift = 0,
   onSyncNow,
   onLeave,
+  chatOpen = true,
+  onToggleChat,
+  unreadCount = 0,
 }: RoomHeaderProps) {
   const [copied, setCopied] = useState(false);
 
@@ -93,6 +99,42 @@ export function RoomHeader({
           <span className="hidden sm:inline-block rounded-full bg-accent-2/10 px-2 py-0.5 text-[11px] font-medium text-accent-2 border border-accent-2/20">
             Local sync mode
           </span>
+        )}
+
+        {onToggleChat && (
+          <button
+            type="button"
+            onClick={onToggleChat}
+            aria-label={chatOpen ? 'Hide chat' : 'Show chat'}
+            className={`relative inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-medium transition ${
+              chatOpen
+                ? 'bg-accent/20 text-text border-accent/40'
+                : 'bg-surface-2 text-muted hover:text-text'
+            }`}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="size-3.5"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 2c-2.236 0-4.43.18-6.57.532a2.25 2.25 0 0 0-1.88 2.2V11c0 1.25.98 2.26 2.23 2.3 1.34.04 2.68.12 4.02.24l2.67 2.14a.75.75 0 0 0 1.23-.58v-1.63c1.78-.17 3.52-.45 5.2-.83a2.25 2.25 0 0 0 1.88-2.2V4.732a2.25 2.25 0 0 0-1.88-2.2A49.19 49.19 0 0 0 10 2Z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <span>Chat</span>
+            {unreadCount > 0 && (
+              <span
+                data-testid="chat-unread-badge"
+                className="rounded-full bg-accent px-1.5 py-0.2 text-[10px] font-bold text-bg leading-tight"
+              >
+                {unreadCount}
+              </span>
+            )}
+          </button>
         )}
 
         <Button variant="ghost" onClick={onLeave} className="h-8 px-3 text-xs text-muted hover:text-danger">

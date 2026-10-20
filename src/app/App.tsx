@@ -3,6 +3,7 @@ import { PlayerView, type MediaInfo } from '../features/player';
 import { LobbyView } from '../features/lobby';
 import { useRoom, RoomHeader } from '../features/room';
 import { useSync, MediaMismatchDialog, SyncDevOverlay } from '../features/sync';
+import { useChat, ChatView } from '../features/chat';
 import { Toast } from '../ui';
 
 export function App() {
@@ -82,6 +83,14 @@ function RoomSession({
 
   const sync = useSync(videoElement, room.channel, room.self?.userId ?? null);
 
+  const chat = useChat({
+    channel: room.channel,
+    selfUserId: room.self?.userId ?? null,
+    roomCode,
+    persist: true,
+    initialOpen: true,
+  });
+
   const { broadcastMedia } = sync;
   const selfUserId = room.self?.userId;
 
@@ -106,7 +115,7 @@ function RoomSession({
   const showMismatch = sync.partnerMedia && localMedia && dismissedHash !== sync.partnerMedia.hash;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-5xl flex-col gap-6 p-4 sm:p-8">
+    <main className="mx-auto flex min-h-dvh max-w-6xl flex-col gap-6 p-4 sm:p-8">
       <RoomHeader
         roomCode={roomCode}
         status={room.status}
@@ -116,6 +125,9 @@ function RoomSession({
         drift={sync.drift}
         onSyncNow={sync.syncNow}
         onLeave={handleLeave}
+        chatOpen={chat.isOpen}
+        onToggleChat={() => chat.setIsOpen((prev) => !prev)}
+        unreadCount={chat.unreadCount}
       />
 
       {room.error && (
@@ -131,19 +143,35 @@ function RoomSession({
         </div>
       )}
 
-      <PlayerView
-        onVideoRef={setVideoElement}
-        onMediaInfo={setLocalMedia}
-        partnerBuffering={sync.partnerBuffering}
-      />
+      <div className={`grid grid-cols-1 gap-6 items-start ${chat.isOpen ? 'lg:grid-cols-[1fr_340px]' : ''}`}>
+        <div className="flex flex-col gap-6 min-w-0">
+          <PlayerView
+            onVideoRef={setVideoElement}
+            onMediaInfo={setLocalMedia}
+            partnerBuffering={sync.partnerBuffering}
+          />
 
-      {showMismatch && sync.partnerMedia && localMedia && (
-        <MediaMismatchDialog
-          localMedia={localMedia}
-          partnerMedia={sync.partnerMedia}
-          onDismiss={() => setDismissedHash(sync.partnerMedia?.hash ?? null)}
-        />
-      )}
+          {showMismatch && sync.partnerMedia && localMedia && (
+            <MediaMismatchDialog
+              localMedia={localMedia}
+              partnerMedia={sync.partnerMedia}
+              onDismiss={() => setDismissedHash(sync.partnerMedia?.hash ?? null)}
+            />
+          )}
+        </div>
+
+        {chat.isOpen && (
+          <aside className="h-[520px] w-full shrink-0">
+            <ChatView
+              messages={chat.messages}
+              selfUserId={room.self?.userId ?? null}
+              partnerName={room.partner?.name}
+              onSendMessage={chat.sendMessage}
+              onClose={() => chat.setIsOpen(false)}
+            />
+          </aside>
+        )}
+      </div>
 
       <SyncDevOverlay sync={sync} roomCode={roomCode} />
 

@@ -280,6 +280,7 @@ class MockChannel implements DuetChannel {
 
 const STORAGE_KEY_ROOMS = 'duet:mock:rooms';
 const STORAGE_KEY_MEMBERS = 'duet:mock:members';
+const STORAGE_KEY_MESSAGES = 'duet:mock:messages';
 
 type MockRoom = { code: string; created_by: string; created_at: string };
 type MockMember = { room_code: string; user_id: string; display_name: string; joined_at: string };
@@ -581,3 +582,91 @@ export async function leaveRoomInDb(code: string, userId: string): Promise<void>
   const next = members.filter((m) => !(m.room_code === code && m.user_id === userId));
   saveMockMembers(next);
 }
+
+export interface StoredMessage {
+  id: string;
+  from: string;
+  text: string;
+  at: number;
+}
+
+export async function saveMessageInDb(
+  roomCode: string,
+  userId: string,
+  msg: { id: string; text: string; at: number },
+): Promise<void> {
+  if (rawSupabase) {
+    try {
+      await rawSupabase.from('messages').insert({
+        id: msg.id,
+        room_code: roomCode,
+        user_id: userId,
+        body: msg.text,
+        created_at: new Date(msg.at).toISOString(),
+      });
+    } catch (err) {
+      console.warn('Failed to persist message in DB:', err);
+    }
+    return;
+  }
+
+  // Mock persistence in localStorage / memory
+  const key = `${STORAGE_KEY_MESSAGES}:${roomCode}`;
+  try {
+    const list: Array<{ id: string; room_code: string; user_id: string; body: string; created_at: string }> =
+      JSON.parse(safeStorage.getItem(key) || '[]');
+    list.push({
+      id: msg.id,
+      room_code: roomCode,
+      user_id: userId,
+      body: msg.text,
+      created_at: new Date(msg.at).toISOString(),
+    });
+    // keep last 100 messages
+    if (list.length > 100) {
+      list.splice(0, list.length - 100);
+    }
+    safeStorage.setItem(key, JSON.stringify(list));
+  } catch {
+    // ignore
+  }
+}
+
+export async function loadMessagesFromDb(roomCode: string): Promise<StoredMessage[]> {
+  if (rawSupabase) {
+    try {
+      const { data, error } = await rawSupabase
+        .from('messages')
+        .select('id, user_id, body, created_at')
+        .eq('room_code', roomCode)
+        .order('created_at', { ascending: true })
+        .limit(100);
+
+      if (error || !data) return [];
+      return data.map((row) => ({
+        id: row.id,
+        from: row.user_id,
+        text: row.body,
+        at: new Date(row.created_at).getTime(),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  // Mock retrieval
+  const key = `${STORAGE_KEY_MESSAGES}:${roomCode}`;
+  try {
+    const list: Array<{ id: string; room_code: string; user_id: string; body: string; created_at: string }> =
+      JSON.parse(safeStorage.getItem(key) || '[]');
+    return list.map((m) => ({
+      id: m.id,
+      from: m.user_id,
+      text: m.body,
+      at: new Date(m.created_at).getTime(),
+    }));
+  } catch {
+    return [];
+  }
+}
+

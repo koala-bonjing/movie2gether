@@ -1,2 +1,5 @@
-// Phase 4: Chat feature exports
-export {};
+export * from './sanitize';
+export * from './useChat';
+export * from './ChatBubble';
+export * from './ChatInput';
+export * from './ChatView';
