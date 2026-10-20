@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { isPolitePeer, getIceServers, parseRtpVideoStats } from './webrtc';
+import {
+  isPolitePeer,
+  getIceServers,
+  parseRtpVideoStats,
+  formatBitrate,
+  formatResolution,
+  isScreenShareSupported,
+  applyBitrateCap,
+} from './webrtc';
 
 describe('WebRTC pure helpers', () => {
   describe('isPolitePeer', () => {
@@ -70,17 +78,102 @@ describe('WebRTC pure helpers', () => {
         ],
       ]);
 
-      const parsed = parseRtpVideoStats(mockStats);
-      expect(parsed).toEqual({
+      const { stats } = parseRtpVideoStats(mockStats);
+      expect(stats).toEqual({
         width: 640,
         height: 360,
         fps: 24,
       });
     });
 
+    it('calculates bitrate from delta bytes over time', () => {
+      const statsMap = new Map<string, Record<string, unknown>>([
+        [
+          'video-inbound',
+          {
+            type: 'inbound-rtp',
+            kind: 'video',
+            frameWidth: 1920,
+            frameHeight: 1080,
+            framesPerSecond: 30,
+            bytesReceived: 3_000_000,
+            timestamp: 2000,
+          },
+        ],
+      ]);
+
+      const history = { bytes: 1_000_000, timestamp: 0 };
+      const { stats } = parseRtpVideoStats(statsMap, history);
+
+      // (2,000,000 bytes * 8 bits) / 2 seconds = 8,000,000 bps = 8,000 kbps
+      expect(stats.bitrateKbps).toBe(8000);
+      expect(stats.width).toBe(1920);
+      expect(stats.height).toBe(1080);
+      expect(stats.fps).toBe(30);
+    });
+
     it('returns empty object when no inbound video stats are present', () => {
       const emptyStats = new Map<string, Record<string, unknown>>();
-      expect(parseRtpVideoStats(emptyStats)).toEqual({});
+      expect(parseRtpVideoStats(emptyStats).stats).toEqual({});
+    });
+  });
+
+  describe('formatBitrate and formatResolution', () => {
+    it('formats bitrates in Mbps and kbps correctly', () => {
+      expect(formatBitrate(6000)).toBe('6.0 Mbps');
+      expect(formatBitrate(1500)).toBe('1.5 Mbps');
+      expect(formatBitrate(750)).toBe('750 kbps');
+      expect(formatBitrate(undefined)).toBe('');
+      expect(formatBitrate(0)).toBe('');
+    });
+
+    it('formats standard and custom resolutions', () => {
+      expect(formatResolution(1920, 1080)).toBe('1080p');
+      expect(formatResolution(1280, 720)).toBe('720p');
+      expect(formatResolution(854, 480)).toBe('480p');
+      expect(formatResolution(640, 360)).toBe('640×360');
+      expect(formatResolution(undefined, undefined)).toBe('');
+    });
+  });
+
+  describe('isScreenShareSupported', () => {
+    it('returns true on desktop browsers', () => {
+      const desktopChrome =
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      const desktopMac =
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+      expect(isScreenShareSupported(desktopChrome)).toBe(true);
+      expect(isScreenShareSupported(desktopMac)).toBe(true);
+    });
+
+    it('returns false on mobile browsers (Android and iOS)', () => {
+      const androidChrome =
+        'Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36';
+      const iphoneSafari =
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1';
+      const ipadSafari =
+        'Mozilla/5.0 (iPad; CPU OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1';
+
+      expect(isScreenShareSupported(androidChrome)).toBe(false);
+      expect(isScreenShareSupported(iphoneSafari)).toBe(false);
+      expect(isScreenShareSupported(ipadSafari)).toBe(false);
+    });
+  });
+
+  describe('applyBitrateCap', () => {
+    it('sets maxBitrate on sender encoding parameters', async () => {
+      let params = { encodings: [{}] } as unknown as RTCRtpSendParameters;
+      const mockSender = {
+        getParameters: () => params,
+        setParameters: async (p: RTCRtpSendParameters) => {
+          params = p;
+        },
+      } as unknown as RTCRtpSender;
+
+      await applyBitrateCap(mockSender, 6_000_000);
+      expect(params.encodings[0]?.maxBitrate).toBe(6_000_000);
     });
   });
 });
+

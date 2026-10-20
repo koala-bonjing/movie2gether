@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { IconButton } from '../../ui';
+import { IconButton, QualityBadge } from '../../ui';
+import type { VideoStats } from '../call/webrtc';
 import { formatTime } from './media';
 
 const SKIP_S = 5;
@@ -71,9 +72,15 @@ const toggleFullscreen = (container: HTMLElement, video: HTMLVideoElement) => {
   }
 };
 
-type Props = { video: HTMLVideoElement; container: HTMLElement; onToggleChat?: () => void };
+type Props = {
+  video: HTMLVideoElement;
+  container: HTMLElement;
+  onToggleChat?: () => void;
+  isStream?: boolean;
+  stats?: VideoStats | null;
+};
 
-export function PlayerControls({ video, container, onToggleChat }: Props) {
+export function PlayerControls({ video, container, onToggleChat, isStream = false, stats }: Props) {
   const [s, setS] = useState(() => snapshot(video));
   const [active, setActive] = useState(true);
 
@@ -154,26 +161,38 @@ export function PlayerControls({ video, container, onToggleChat }: Props) {
         <IconButton label={s.playing ? 'Pause' : 'Play'} onClick={() => toggle(video)}>
           {s.playing ? icons.pause : icons.play}
         </IconButton>
-        <span className="shrink-0 px-1 text-xs tabular-nums text-text">
-          {formatTime(s.time)} / {formatTime(s.duration)}
-        </span>
-        <div className="relative mx-2 min-w-0 flex-1">
-          <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-white/20">
-            <div className="absolute inset-y-0 left-0 bg-white/30" style={{ width: pct(s.buffered) }} />
-            <div className="absolute inset-y-0 left-0 bg-accent" style={{ width: pct(s.time) }} />
+        {isStream ? (
+          <div className="flex flex-1 items-center gap-2 px-2">
+            <span className="flex items-center gap-1.5 rounded-full bg-danger/20 border border-danger/40 px-2 py-0.5 text-[10px] font-bold tracking-wider text-danger uppercase">
+              <span className="size-1.5 rounded-full bg-danger animate-pulse" />
+              Live
+            </span>
+            {stats && <QualityBadge stats={stats} />}
           </div>
-          <input
-            type="range"
-            aria-label="Seek"
-            aria-valuetext={formatTime(s.time)}
-            className="range relative block w-full"
-            min={0}
-            max={s.duration}
-            step="any"
-            value={s.time}
-            onChange={(e) => seek(video, Number(e.target.value))}
-          />
-        </div>
+        ) : (
+          <>
+            <span className="shrink-0 px-1 text-xs tabular-nums text-text">
+              {formatTime(s.time)} / {formatTime(s.duration)}
+            </span>
+            <div className="relative mx-2 min-w-0 flex-1">
+              <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-white/20">
+                <div className="absolute inset-y-0 left-0 bg-white/30" style={{ width: pct(s.buffered) }} />
+                <div className="absolute inset-y-0 left-0 bg-accent" style={{ width: pct(s.time) }} />
+              </div>
+              <input
+                type="range"
+                aria-label="Seek"
+                aria-valuetext={formatTime(s.time)}
+                className="range relative block w-full"
+                min={0}
+                max={s.duration}
+                step="any"
+                value={s.time}
+                onChange={(e) => seek(video, Number(e.target.value))}
+              />
+            </div>
+          </>
+        )}
         <IconButton label={s.muted ? 'Unmute' : 'Mute'} onClick={() => toggleMute(video)}>
           {s.muted || s.volume === 0 ? icons.muted : icons.volume}
         </IconButton>

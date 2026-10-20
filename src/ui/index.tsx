@@ -98,4 +98,5 @@ export function Toast({ message, children, className = '', ...props }: ToastProp
 }
 
 export * from './OtpInput';
+export * from './QualityBadge';
 

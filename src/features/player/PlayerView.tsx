@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Button } from '../../ui';
+import { useEffect, useState, useRef } from 'react';
+import { Button, QualityBadge } from '../../ui';
+import type { VideoStats } from '../call/webrtc';
 import { FilePickerCard } from './FilePickerCard';
 import { PlayerControls } from './PlayerControls';
 import { fingerprint, formatTime, type MediaInfo } from './media';
@@ -13,12 +14,24 @@ export interface PlayerViewProps {
   onVideoRef?: (el: HTMLVideoElement | null) => void;
   onMediaInfo?: (info: MediaInfo | null) => void;
   partnerBuffering?: boolean;
+  isStreamMode?: boolean;
+  streamSource?: MediaStream | null;
+  isScreenSharing?: boolean;
+  streamerName?: string;
+  onStopScreenShare?: () => void;
+  stats?: VideoStats | null;
 }
 
 export function PlayerView({
   onVideoRef,
   onMediaInfo,
   partnerBuffering = false,
+  isStreamMode = false,
+  streamSource = null,
+  isScreenSharing = false,
+  streamerName,
+  onStopScreenShare,
+  stats,
 }: PlayerViewProps = {}) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
@@ -69,7 +82,41 @@ export function PlayerView({
         tabIndex={-1}
         className="group relative aspect-video w-full overflow-hidden rounded-md bg-black outline-none"
       >
-        {source ? (
+        {isStreamMode ? (
+          isScreenSharing ? (
+            <div className="flex flex-col items-center justify-center size-full gap-3 bg-surface-2 p-6 text-center select-none" data-testid="screen-stream-local">
+              <div className="grid size-14 place-items-center rounded-full bg-accent/20 border border-accent/40 text-accent">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-7" aria-hidden="true">
+                  <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm4 15h8v-1.5H8V20Z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-text">You are sharing your screen</h3>
+                <p className="text-xs text-muted mt-1">Live 1080p stream active. Partner is watching.</p>
+              </div>
+              {stats && <QualityBadge stats={stats} />}
+              {onStopScreenShare && (
+                <Button variant="primary" onClick={onStopScreenShare} className="mt-2 text-xs h-9 px-4" data-testid="stop-screenshare-main-btn">
+                  Stop Sharing
+                </Button>
+              )}
+            </div>
+          ) : streamSource ? (
+            <StreamPlayerView
+              streamSource={streamSource}
+              container={container}
+              stats={stats}
+              streamerName={streamerName}
+            />
+          ) : (
+            <div className="grid size-full place-items-center p-4 text-center text-muted select-none">
+              <div className="flex items-center gap-2">
+                <span className="size-2 rounded-full bg-accent motion-safe:animate-ping" />
+                <span>Connecting to screen stream…</span>
+              </div>
+            </div>
+          )
+        ) : source ? (
           <>
             <video
               ref={setVideo}
@@ -149,24 +196,98 @@ export function PlayerView({
         )}
       </div>
 
-      {source && (
-        <p className="text-sm break-all text-muted">
-          <span className="text-text">{source.label}</span>
-          {meta && ` · ${meta.width}×${meta.height} · ${formatTime(meta.duration)}`}
-          {source.file && ` · ${mb.format(source.file.size / 1e6)}`}
-          {info && (
-            <>
-              {' · '}
-              <code title={info.hash}>{info.hash.slice(0, 12)}</code>
-            </>
+      {isStreamMode ? (
+        <div className="flex items-center justify-between rounded-md border border-accent/20 bg-accent/5 p-3 text-xs text-muted">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-accent" />
+            <span>Room is in Stream Mode. Local video file sync is paused.</span>
+          </div>
+          {isScreenSharing && onStopScreenShare && (
+            <button
+              type="button"
+              onClick={onStopScreenShare}
+              className="text-accent underline font-medium hover:opacity-80"
+            >
+              Stop Sharing
+            </button>
           )}
-        </p>
-      )}
+        </div>
+      ) : (
+        <>
+          {source && (
+            <p className="text-sm break-all text-muted">
+              <span className="text-text">{source.label}</span>
+              {meta && ` · ${meta.width}×${meta.height} · ${formatTime(meta.duration)}`}
+              {source.file && ` · ${mb.format(source.file.size / 1e6)}`}
+              {info && (
+                <>
+                  {' · '}
+                  <code title={info.hash}>{info.hash.slice(0, 12)}</code>
+                </>
+              )}
+            </p>
+          )}
 
-      <FilePickerCard
-        onFile={(file) => load({ src: URL.createObjectURL(file), label: file.name, file })}
-        onUrl={(url) => load({ src: url, label: url })}
-      />
+          <FilePickerCard
+            onFile={(file) => load({ src: URL.createObjectURL(file), label: file.name, file })}
+            onUrl={(url) => load({ src: url, label: url })}
+          />
+        </>
+      )}
     </section>
   );
 }
+
+function StreamPlayerView({
+  streamSource,
+  container,
+  stats,
+  streamerName,
+}: {
+  streamSource: MediaStream;
+  container: HTMLElement | null;
+  stats?: VideoStats | null;
+  streamerName?: string;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = streamSource;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [streamSource]);
+
+  const handleVideoRef = (el: HTMLVideoElement | null) => {
+    videoRef.current = el;
+    setVideoElement(el);
+  };
+
+  return (
+    <div className="relative size-full" data-testid="screen-stream-remote">
+      <video
+        ref={handleVideoRef}
+        autoPlay
+        playsInline
+        className="size-full object-contain"
+      />
+      <div className="absolute top-3 left-3 z-20 flex items-center gap-2 rounded-full bg-black/70 border border-white/10 px-3 py-1 backdrop-blur-xs select-none">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-text">
+          <span className="size-2 rounded-full bg-danger animate-pulse" />
+          <span>Screen: {streamerName || 'Partner'}</span>
+        </span>
+        {stats && <QualityBadge stats={stats} />}
+      </div>
+      {videoElement && container && (
+        <PlayerControls
+          video={videoElement}
+          container={container}
+          isStream={true}
+          stats={stats}
+        />
+      )}
+    </div>
+  );
+}
+

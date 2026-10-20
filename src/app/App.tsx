@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PlayerView, type MediaInfo } from '../features/player';
 import { LobbyView } from '../features/lobby';
 import { useRoom, RoomHeader } from '../features/room';
 import { useSync, MediaMismatchDialog, SyncDevOverlay } from '../features/sync';
+import { safeParseRoomModeMsg } from '../features/sync/protocol';
 import { useChat, ChatView } from '../features/chat';
 import { useCall, CallSection } from '../features/call';
 import { Toast } from '../ui';
@@ -98,6 +99,9 @@ function RoomSession({
     partnerUserId: room.partner?.userId ?? null,
   });
 
+  const [roomMode, setRoomMode] = useState<'sync' | 'stream'>('sync');
+  const [streamerId, setStreamerId] = useState<string | null>(null);
+
   const { broadcastMedia } = sync;
   const selfUserId = room.self?.userId;
 
@@ -113,6 +117,84 @@ function RoomSession({
       });
     }
   }, [localMedia, selfUserId, broadcastMedia]);
+
+  // Synchronize stream mode when local screen share starts or stops
+  const wasScreenSharingRef = useRef(false);
+  useEffect(() => {
+    if (call.isScreenSharing && !wasScreenSharingRef.current) {
+      wasScreenSharingRef.current = true;
+      setRoomMode('stream');
+      setStreamerId(selfUserId ?? null);
+      if (videoElement && !videoElement.paused) {
+        videoElement.pause();
+      }
+      room.channel?.send({
+        type: 'broadcast',
+        event: 'room-mode',
+        payload: {
+          from: selfUserId,
+          mode: 'stream',
+          streamerId: selfUserId,
+        },
+      });
+    } else if (!call.isScreenSharing && wasScreenSharingRef.current) {
+      wasScreenSharingRef.current = false;
+      setRoomMode('sync');
+      setStreamerId(null);
+      room.channel?.send({
+        type: 'broadcast',
+        event: 'room-mode',
+        payload: {
+          from: selfUserId,
+          mode: 'sync',
+        },
+      });
+    }
+  }, [call.isScreenSharing, selfUserId, room.channel, videoElement]);
+
+  // Listen for remote room-mode events
+  useEffect(() => {
+    if (!room.channel) return;
+    const handleRoomMode = ({ payload }: { payload: unknown }) => {
+      const parsed = safeParseRoomModeMsg(payload);
+      if (!parsed) return;
+      if (parsed.mode === 'stream') {
+        setRoomMode('stream');
+        setStreamerId(parsed.streamerId ?? parsed.from);
+        if (videoElement && !videoElement.paused) {
+          videoElement.pause();
+        }
+      } else {
+        setRoomMode('sync');
+        setStreamerId(null);
+      }
+    };
+
+    room.channel.on('broadcast', { event: 'room-mode' }, handleRoomMode);
+  }, [room.channel, videoElement]);
+
+  // If partner joins while we are sharing screen, sync them into stream mode
+  useEffect(() => {
+    if (room.partner && call.isScreenSharing && selfUserId) {
+      room.channel?.send({
+        type: 'broadcast',
+        event: 'room-mode',
+        payload: {
+          from: selfUserId,
+          mode: 'stream',
+          streamerId: selfUserId,
+        },
+      });
+    }
+  }, [room.partner, call.isScreenSharing, selfUserId, room.channel]);
+
+  // Automatically answer incoming stream call as viewer
+  const { connectionState, answerCall } = call;
+  useEffect(() => {
+    if (roomMode === 'stream' && connectionState === 'incoming') {
+      void answerCall(false);
+    }
+  }, [roomMode, connectionState, answerCall]);
 
   const handleLeave = async () => {
     call.endCall();
@@ -136,6 +218,8 @@ function RoomSession({
         chatOpen={chat.isOpen}
         onToggleChat={() => chat.setIsOpen((prev) => !prev)}
         unreadCount={chat.unreadCount}
+        stats={call.remoteStats}
+        isStreamMode={roomMode === 'stream'}
       />
 
       {room.error && (
@@ -161,6 +245,16 @@ function RoomSession({
             onVideoRef={setVideoElement}
             onMediaInfo={setLocalMedia}
             partnerBuffering={sync.partnerBuffering}
+            isStreamMode={roomMode === 'stream'}
+            streamSource={call.isScreenSharing ? call.screenStream : call.remoteStream}
+            isScreenSharing={call.isScreenSharing}
+            streamerName={
+              call.isScreenSharing || streamerId === selfUserId
+                ? room.self?.name
+                : room.partner?.name ?? 'Partner'
+            }
+            onStopScreenShare={call.stopScreenShare}
+            stats={call.remoteStats}
           />
 
           {showMismatch && sync.partnerMedia && localMedia && (

@@ -15,6 +15,9 @@ export interface CallControlsProps {
   isFloating?: boolean;
   onToggleFloat?: () => void;
   disabled?: boolean;
+  isScreenSharing?: boolean;
+  isScreenShareAvailable?: boolean;
+  onToggleScreenShare?: () => void;
 }
 
 export function CallControls({
@@ -32,6 +35,9 @@ export function CallControls({
   isFloating = false,
   onToggleFloat,
   disabled = false,
+  isScreenSharing = false,
+  isScreenShareAvailable = false,
+  onToggleScreenShare,
 }: CallControlsProps) {
   const handleToggleCam = onToggleCam || toggleCam;
   const handleToggleMic = onToggleMic || toggleMic;
@@ -92,6 +98,33 @@ export function CallControls({
           </svg>
           <span>{isIncoming ? 'Partner is calling — Join call' : 'Start call'}</span>
         </button>
+
+        {isScreenShareAvailable && onToggleScreenShare && !isIncoming && (
+          <button
+            type="button"
+            onClick={onToggleScreenShare}
+            disabled={disabled}
+            aria-label="Share screen"
+            data-testid="share-screen-btn"
+            title="Share your desktop screen (1080p30)"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-surface-2 px-3 text-xs font-semibold text-text hover:bg-surface-2/80 transition active:scale-95 disabled:opacity-50"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="size-4 text-accent"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                d="M2 4.25A2.25 2.25 0 0 1 4.25 2h11.5A2.25 2.25 0 0 1 18 4.25v8.5A2.25 2.25 0 0 1 15.75 15h-3.19l.72 1.44a.75.75 0 0 1-1.34.67L10.72 15H9.28l-1.22 2.11a.75.75 0 0 1-1.34-.67l.72-1.44H4.25A2.25 2.25 0 0 1 2 12.75v-8.5Zm2.25-.75a.75.75 0 0 0-.75.75v8.5c0 .414.336.75.75.75h11.5a.75.75 0 0 0 .75-.75v-8.5a.75.75 0 0 0-.75-.75H4.25Z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <span className="hidden sm:inline">Share screen</span>
+          </button>
+        )}
       </div>
     );
   }
@@ -165,6 +198,36 @@ export function CallControls({
           </svg>
         )}
       </button>
+
+      {/* Desktop-only Screen Share button */}
+      {isScreenShareAvailable && onToggleScreenShare && (
+        <button
+          type="button"
+          onClick={onToggleScreenShare}
+          aria-label={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+          data-testid="toggle-screenshare-btn"
+          title={isScreenSharing ? 'Stop sharing screen' : 'Share screen (1080p30)'}
+          className={`grid size-9 place-items-center rounded-full transition active:scale-95 ${
+            isScreenSharing
+              ? 'bg-accent text-bg shadow-sm'
+              : 'text-text hover:bg-white/10'
+          }`}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            className="size-4"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M2 4.25A2.25 2.25 0 0 1 4.25 2h11.5A2.25 2.25 0 0 1 18 4.25v8.5A2.25 2.25 0 0 1 15.75 15h-3.19l.72 1.44a.75.75 0 0 1-1.34.67L10.72 15H9.28l-1.22 2.11a.75.75 0 0 1-1.34-.67l.72-1.44H4.25A2.25 2.25 0 0 1 2 12.75v-8.5Zm2.25-.75a.75.75 0 0 0-.75.75v8.5c0 .414.336.75.75.75h11.5a.75.75 0 0 0 .75-.75v-8.5a.75.75 0 0 0-.75-.75H4.25Z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </button>
+      )}
 
       {/* Float/Dock Toggle Button */}
       {onToggleFloat && (

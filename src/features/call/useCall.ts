@@ -2,7 +2,17 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { DuetChannel } from '../../lib/supabase';
 import { safeParseSignalMsg, type SignalMsg } from '../sync/protocol';
 import { env } from '../../lib/env';
-import { getIceServers, isPolitePeer, parseRtpVideoStats, type VideoStats } from './webrtc';
+import {
+  getIceServers,
+  isPolitePeer,
+  parseRtpVideoStats,
+  isScreenShareSupported,
+  applyBitrateCap,
+  configureScreenTrack,
+  SCREEN_SHARE_CONSTRAINTS,
+  type VideoStats,
+  type VideoStatsHistory,
+} from './webrtc';
 
 export type CallConnectionState =
   | 'idle'
@@ -32,10 +42,18 @@ export interface UseCallReturn {
   remoteMicOn: boolean;
   remoteStats: VideoStats | null;
   startCall: () => Promise<void>;
+  answerCall: (withLocalMedia?: boolean) => Promise<void>;
   endCall: (notifyPartner?: boolean) => void;
   toggleCam: () => void;
   toggleMic: () => void;
   restartIce: () => void;
+  isScreenSharing: boolean;
+  remoteScreenSharing: boolean;
+  isScreenShareAvailable: boolean;
+  screenStream: MediaStream | null;
+  startScreenShare: () => Promise<void>;
+  stopScreenShare: () => Promise<void>;
+  toggleScreenShare: () => Promise<void>;
 }
 
 export function useCall({
@@ -54,8 +72,19 @@ export function useCall({
   const [remoteMicOn, setRemoteMicOn] = useState(true);
   const [remoteStats, setRemoteStats] = useState<VideoStats | null>(null);
 
+  // Screen share & stream mode states
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const isScreenSharingRef = useRef(false);
+  const cameraVideoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const micAudioTrackRef = useRef<MediaStreamTrack | null>(null);
+  const statsHistoryRef = useRef<VideoStatsHistory | undefined>(undefined);
+
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
   const pendingRemoteOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
@@ -108,11 +137,12 @@ export function useCall({
   }, []);
 
   const sendMediaState = useCallback(
-    (camOn: boolean, micOn: boolean) => {
+    (camOn: boolean, micOn: boolean, screenSharing = isScreenSharingRef.current) => {
       sendSignal({
         type: 'media-state',
         camOn,
         micOn,
+        screenSharing,
       });
     },
     [sendSignal],
@@ -127,6 +157,11 @@ export function useCall({
       if (statsTimerRef.current) {
         clearInterval(statsTimerRef.current);
         statsTimerRef.current = null;
+      }
+
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((track) => track.stop());
+        screenStreamRef.current = null;
       }
 
       if (localStreamRef.current) {
@@ -148,10 +183,17 @@ export function useCall({
       pendingCandidatesRef.current = [];
       makingOfferRef.current = false;
       ignoreOfferRef.current = false;
+      cameraVideoTrackRef.current = null;
+      micAudioTrackRef.current = null;
+      statsHistoryRef.current = undefined;
 
       if (isMountedRef.current) {
         setLocalStream(null);
         setRemoteStream(null);
+        setScreenStream(null);
+        setIsScreenSharing(false);
+        isScreenSharingRef.current = false;
+        setRemoteScreenSharing(false);
         setConnectionState('idle');
         setErrorMessage(null);
         setRemoteStats(null);
@@ -211,7 +253,7 @@ export function useCall({
 
   // Perfect Negotiation PeerConnection setup
   const initPeerConnection = useCallback(
-    (stream: MediaStream): RTCPeerConnection => {
+    (stream: MediaStream | null): RTCPeerConnection => {
       const iceServers = getIceServers({
         stunUrls: env.VITE_STUN_URLS,
         turnUrl: env.VITE_TURN_URL,
@@ -222,9 +264,11 @@ export function useCall({
       const pc = new RTCPeerConnection({ iceServers });
       pcRef.current = pc;
 
-      // Add local media tracks
-      for (const track of stream.getTracks()) {
-        pc.addTrack(track, stream);
+      // Add local media tracks if provided
+      if (stream) {
+        for (const track of stream.getTracks()) {
+          pc.addTrack(track, stream);
+        }
       }
 
       // Handle remote incoming tracks
@@ -272,7 +316,7 @@ export function useCall({
           setConnectionState('connected');
           setErrorMessage(null);
           // Broadcast current media state to partner
-          sendMediaState(isCamOnRef.current, isMicOnRef.current);
+          sendMediaState(isCamOnRef.current, isMicOnRef.current, isScreenSharingRef.current);
         } else if (state === 'disconnected') {
           setConnectionState('disconnected');
         } else if (state === 'failed') {
@@ -293,8 +337,9 @@ export function useCall({
         if (pc.connectionState === 'connected') {
           try {
             const stats = await pc.getStats();
-            const parsed = parseRtpVideoStats(stats);
-            if (parsed.width || parsed.height || parsed.fps) {
+            const { stats: parsed, history } = parseRtpVideoStats(stats, statsHistoryRef.current);
+            statsHistoryRef.current = history;
+            if (parsed.width || parsed.height || parsed.fps || parsed.bitrateKbps) {
               setRemoteStats(parsed);
             }
           } catch {
@@ -374,7 +419,7 @@ export function useCall({
             },
           });
         }
-        sendMediaState(!audioOnly, true);
+        sendMediaState(!audioOnly, true, isScreenSharingRef.current);
       }
     } catch (mediaErr) {
       console.error('Microphone and camera access denied:', mediaErr);
@@ -382,6 +427,162 @@ export function useCall({
       setErrorMessage('Camera/microphone access was denied. Please allow permissions to start the call.');
     }
   }, [initPeerConnection, sendSignal, sendMediaState]);
+
+  const answerCall = useCallback(
+    async (withLocalMedia = true) => {
+      if (!withLocalMedia) {
+        try {
+          setConnectionState('connecting');
+          const pc = pcRef.current ?? initPeerConnection(null);
+          if (pendingRemoteOfferRef.current) {
+            const pendingDesc = pendingRemoteOfferRef.current;
+            pendingRemoteOfferRef.current = null;
+            await pc.setRemoteDescription(pendingDesc);
+            await drainPendingCandidates(pc);
+            await pc.setLocalDescription();
+            if (pc.localDescription) {
+              sendSignal({
+                type: 'description',
+                description: {
+                  type: pc.localDescription.type,
+                  sdp: pc.localDescription.sdp,
+                },
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to answer call as viewer:', err);
+        }
+        return;
+      }
+      await startCall();
+    },
+    [initPeerConnection, sendSignal, startCall],
+  );
+
+  const stopScreenShare = useCallback(async () => {
+    if (!isScreenSharingRef.current && !screenStreamRef.current) return;
+
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
+    }
+    setScreenStream(null);
+    setIsScreenSharing(false);
+    isScreenSharingRef.current = false;
+
+    const pc = pcRef.current;
+    if (pc) {
+      // Restore camera video track if it existed
+      const videoSender = pc.getSenders().find(
+        (s) => s.track?.kind === 'video' || (s as { kind?: string }).kind === 'video',
+      );
+      const camTrack = cameraVideoTrackRef.current ?? localStreamRef.current?.getVideoTracks()[0] ?? null;
+      if (videoSender) {
+        try {
+          await videoSender.replaceTrack(camTrack);
+        } catch (err) {
+          console.warn('Failed to restore camera track:', err);
+        }
+      }
+
+      // Restore microphone audio track if it existed
+      const audioSender = pc.getSenders().find(
+        (s) => s.track?.kind === 'audio' || (s as { kind?: string }).kind === 'audio',
+      );
+      const micTrack = micAudioTrackRef.current ?? localStreamRef.current?.getAudioTracks()[0] ?? null;
+      if (audioSender && micTrack) {
+        try {
+          await audioSender.replaceTrack(micTrack);
+        } catch (err) {
+          console.warn('Failed to restore microphone track:', err);
+        }
+      }
+    }
+
+    sendMediaState(isCamOnRef.current, isMicOnRef.current, false);
+  }, [sendMediaState]);
+
+  const startScreenShare = useCallback(async () => {
+    if (!isScreenShareSupported()) {
+      setErrorMessage('Screen sharing is not supported on this device/browser.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia(SCREEN_SHARE_CONSTRAINTS);
+      const [screenVideoTrack] = stream.getVideoTracks();
+      if (!screenVideoTrack) {
+        throw new Error('No video track returned from screen share');
+      }
+      configureScreenTrack(screenVideoTrack);
+
+      const [screenAudio] = stream.getAudioTracks();
+      screenStreamRef.current = stream;
+      setScreenStream(stream);
+      setIsScreenSharing(true);
+      isScreenSharingRef.current = true;
+
+      // Auto-stop when user clicks browser's native "Stop sharing" button
+      screenVideoTrack.onended = () => {
+        void stopScreenShare();
+      };
+
+      let pc = pcRef.current;
+      if (!pc) {
+        // If call is not started yet, establish peer connection with screenStream
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+        setConnectionState('connecting');
+        pc = initPeerConnection(stream);
+        const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+        if (sender) {
+          void applyBitrateCap(sender, 6_000_000);
+        }
+      } else {
+        // Existing call: replace video track without renegotiation storms
+        const videoSender = pc.getSenders().find(
+          (s) => s.track?.kind === 'video' || (s as { kind?: string }).kind === 'video',
+        );
+        if (videoSender) {
+          cameraVideoTrackRef.current =
+            videoSender.track ?? localStreamRef.current?.getVideoTracks()[0] ?? null;
+          await videoSender.replaceTrack(screenVideoTrack);
+          await applyBitrateCap(videoSender, 6_000_000);
+        } else {
+          pc.addTrack(screenVideoTrack, stream);
+        }
+
+        if (screenAudio) {
+          const audioSender = pc.getSenders().find(
+            (s) => s.track?.kind === 'audio' || (s as { kind?: string }).kind === 'audio',
+          );
+          if (audioSender) {
+            micAudioTrackRef.current =
+              audioSender.track ?? localStreamRef.current?.getAudioTracks()[0] ?? null;
+            await audioSender.replaceTrack(screenAudio);
+          } else {
+            pc.addTrack(screenAudio, stream);
+          }
+        }
+      }
+
+      sendMediaState(isCamOnRef.current, isMicOnRef.current, true);
+    } catch (err) {
+      if ((err as Error).name !== 'NotAllowedError') {
+        console.warn('Failed to start screen share:', err);
+        setErrorMessage('Could not start screen sharing.');
+      }
+    }
+  }, [initPeerConnection, sendMediaState, stopScreenShare]);
+
+  const toggleScreenShare = useCallback(async () => {
+    if (isScreenSharingRef.current) {
+      await stopScreenShare();
+    } else {
+      await startScreenShare();
+    }
+  }, [startScreenShare, stopScreenShare]);
 
   // Handle incoming signaling messages from partner
   useEffect(() => {
@@ -400,10 +601,11 @@ export function useCall({
 
       const { data } = parsed;
 
-      // 1. Media state synchronization (mute / camera toggle)
+      // 1. Media state synchronization (mute / camera toggle / screen share)
       if (data.type === 'media-state') {
         setRemoteCamOn(data.camOn);
         setRemoteMicOn(data.micOn);
+        setRemoteScreenSharing(!!data.screenSharing);
         return;
       }
 
@@ -504,9 +706,18 @@ export function useCall({
     remoteMicOn,
     remoteStats,
     startCall,
+    answerCall,
     endCall,
     toggleCam,
     toggleMic,
     restartIce,
+    isScreenSharing,
+    remoteScreenSharing,
+    isScreenShareAvailable: isScreenShareSupported(),
+    screenStream,
+    startScreenShare,
+    stopScreenShare,
+    toggleScreenShare,
   };
 }
+

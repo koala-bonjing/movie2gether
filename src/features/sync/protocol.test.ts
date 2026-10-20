@@ -6,6 +6,7 @@ import {
   safeParseBufferMsg,
   safeParseChatMsg,
   safeParseSignalMsg,
+  safeParseRoomModeMsg,
 } from './protocol';
 
 describe('sync protocol validation', () => {
@@ -145,7 +146,7 @@ describe('sync protocol validation', () => {
       const sig = {
         from: 'alice',
         to: 'bob',
-        data: { type: 'media-state', camOn: false, micOn: true },
+        data: { type: 'media-state', camOn: false, micOn: true, screenSharing: true },
       };
       expect(safeParseSignalMsg(sig)).toEqual(sig);
     });
@@ -159,4 +160,30 @@ describe('sync protocol validation', () => {
       expect(safeParseSignalMsg(sig)).toEqual(sig);
     });
   });
+
+  describe('RoomModeMsg', () => {
+    it('parses valid stream mode message', () => {
+      const msg = {
+        from: 'alice',
+        mode: 'stream' as const,
+        streamerId: 'alice',
+      };
+      expect(safeParseRoomModeMsg(msg)).toEqual(msg);
+    });
+
+    it('parses valid sync mode message', () => {
+      const msg = {
+        from: 'alice',
+        mode: 'sync' as const,
+      };
+      expect(safeParseRoomModeMsg(msg)).toEqual(msg);
+    });
+
+    it('rejects invalid mode or payload', () => {
+      expect(safeParseRoomModeMsg(null)).toBeNull();
+      expect(safeParseRoomModeMsg({ from: 'alice', mode: 'invalid' })).toBeNull();
+      expect(safeParseRoomModeMsg({ mode: 'sync' })).toBeNull();
+    });
+  });
 });
+

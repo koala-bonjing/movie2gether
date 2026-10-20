@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { Button, StatusDot } from '../../ui';
+import { useState, type ReactNode } from 'react';
+import { Button, StatusDot, QualityBadge } from '../../ui';
 import type { RoomPeer, RoomConnectionStatus, PartnerConnectionStatus } from './useRoom';
 import { isUsingMock } from '../../lib/supabase';
+import type { VideoStats } from '../call/webrtc';
 
 import { DriftIndicator } from '../sync/DriftIndicator';
 
@@ -17,6 +18,9 @@ export interface RoomHeaderProps {
   chatOpen?: boolean;
   onToggleChat?: () => void;
   unreadCount?: number;
+  stats?: VideoStats | null;
+  isStreamMode?: boolean;
+  actions?: ReactNode;
 }
 
 export function RoomHeader({
@@ -30,6 +34,9 @@ export function RoomHeader({
   chatOpen = true,
   onToggleChat,
   unreadCount = 0,
+  stats,
+  isStreamMode = false,
+  actions,
 }: RoomHeaderProps) {
   const [copied, setCopied] = useState(false);
 
@@ -91,9 +98,20 @@ export function RoomHeader({
           )}
         </div>
 
-        {partner && onSyncNow && (
+        {partner && onSyncNow && !isStreamMode && (
           <DriftIndicator drift={drift} onSyncNow={onSyncNow} />
         )}
+
+        {isStreamMode && (
+          <span className="flex items-center gap-1.5 rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-semibold text-accent border border-accent/30">
+            <span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
+            Stream Mode
+          </span>
+        )}
+
+        {stats && <QualityBadge stats={stats} />}
+
+        {actions}
 
         {isUsingMock && (
           <span className="hidden sm:inline-block rounded-full bg-accent-2/10 px-2 py-0.5 text-[11px] font-medium text-accent-2 border border-accent-2/20">

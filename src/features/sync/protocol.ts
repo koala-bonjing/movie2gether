@@ -69,6 +69,7 @@ export const SignalMsgSchema = z.object({
       type: z.literal('media-state'),
       camOn: z.boolean(),
       micOn: z.boolean(),
+      screenSharing: z.boolean().optional(),
     }),
     z.object({
       type: z.literal('hang-up'),
@@ -76,6 +77,13 @@ export const SignalMsgSchema = z.object({
   ]),
 });
 export type SignalMsg = z.infer<typeof SignalMsgSchema>;
+
+export const RoomModeMsgSchema = z.object({
+  from: z.string(),
+  mode: z.enum(['sync', 'stream']),
+  streamerId: z.string().optional(),
+});
+export type RoomModeMsg = z.infer<typeof RoomModeMsgSchema>;
 
 export function safeParseSyncMsg(data: unknown): SyncMsg | null {
   const result = SyncMsgSchema.safeParse(data);
@@ -104,5 +112,10 @@ export function safeParseChatMsg(data: unknown): ChatMsg | null {
 
 export function safeParseSignalMsg(data: unknown): SignalMsg | null {
   const result = SignalMsgSchema.safeParse(data);
+  return result.success ? result.data : null;
+}
+
+export function safeParseRoomModeMsg(data: unknown): RoomModeMsg | null {
+  const result = RoomModeMsgSchema.safeParse(data);
   return result.success ? result.data : null;
 }

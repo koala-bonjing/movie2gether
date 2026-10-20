@@ -64,6 +64,9 @@ export function CallSection({
             onRetry={call.restartIce}
             isFloating={isFloating}
             onToggleFloat={isInCall ? () => setIsFloating((f) => !f) : undefined}
+            isScreenSharing={call.isScreenSharing}
+            isScreenShareAvailable={call.isScreenShareAvailable}
+            onToggleScreenShare={call.toggleScreenShare}
           />
         </div>
 
