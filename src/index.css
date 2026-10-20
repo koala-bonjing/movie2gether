@@ -1,0 +1,105 @@
+@import 'tailwindcss';
+
+/* Tokens from DESIGN.md. Accent is user-themable: swap --accent at runtime. */
+:root {
+  --bg: #0f0d12;
+  --surface: #1a1720;
+  --surface-2: #241f2c;
+  --border: #332c3d;
+  --text: #f4eff6;
+  --muted: #a79fb3;
+  --accent: #e8a0bf;
+  --accent-2: #f2c57c;
+  --success: #7bd3a8;
+  --warn: #f2c57c;
+  --danger: #f08a8a;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-full: 999px;
+  --space: 4px;
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fs-xs: 12px;
+  --fs-sm: 14px;
+  --fs-md: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 28px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+}
+
+/* Expose tokens as Tailwind utilities (bg-surface, text-muted, rounded-md, ...). */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-success: var(--success);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --font-sans: var(--font);
+  --default-transition-duration: var(--dur);
+  --default-transition-timing-function: var(--ease);
+  --transition-duration-fast: var(--dur-fast);
+  --transition-duration-normal: var(--dur);
+}
+/* Radius and type scale share Tailwind's names, so set them directly. Spacing base is already 4px. */
+@theme {
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-full: 999px;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 20px;
+  --text-xl: 28px;
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+}
+
+html {
+  background: var(--bg);
+  color: var(--text);
+  color-scheme: dark;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0ms !important;
+    animation: none !important;
+  }
+}
+
+/* Native range input, restyled: transparent track so a buffered bar can sit underneath. */
+.range {
+  appearance: none;
+  background: transparent;
+  height: 44px;
+  cursor: pointer;
+}
+.range::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+}
