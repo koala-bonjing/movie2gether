@@ -3,7 +3,7 @@ import { Button, Input, OtpInput } from '../../ui';
 import { generateRoomCode, getStoredDisplayName, isValidRoomCode, setStoredDisplayName } from './code';
 
 export interface LobbyViewProps {
-  onJoin: (roomCode: string, displayName: string) => void;
+  onJoin: (roomCode: string, displayName: string, isCreator?: boolean) => void;
   error?: string | null;
   isConnecting?: boolean;
 }
@@ -36,7 +36,7 @@ export function LobbyView({ onJoin, error, isConnecting = false }: LobbyViewProp
   const handleCreateRoom = () => {
     if (!validateName()) return;
     const code = generateRoomCode();
-    onJoin(code, displayName.trim());
+    onJoin(code, displayName.trim(), true);
   };
 
   const handleJoinSubmit = (e: FormEvent) => {
@@ -46,7 +46,7 @@ export function LobbyView({ onJoin, error, isConnecting = false }: LobbyViewProp
       setLocalError('Please enter a valid 6-character room code.');
       return;
     }
-    onJoin(joinCode.toUpperCase(), displayName.trim());
+    onJoin(joinCode.toUpperCase(), displayName.trim(), false);
   };
 
   const displayError = localError || error;

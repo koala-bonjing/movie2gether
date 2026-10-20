@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, StatusDot } from '../../ui';
-import type { RoomPeer, RoomConnectionStatus } from './useRoom';
+import type { RoomPeer, RoomConnectionStatus, PartnerConnectionStatus } from './useRoom';
 import { isUsingMock } from '../../lib/supabase';
 
 import { DriftIndicator } from '../sync/DriftIndicator';
@@ -10,6 +10,7 @@ export interface RoomHeaderProps {
   status: RoomConnectionStatus;
   self: RoomPeer | null;
   partner: RoomPeer | null;
+  partnerStatus?: PartnerConnectionStatus;
   drift?: number;
   onSyncNow?: () => void;
   onLeave: () => void;
@@ -19,6 +20,7 @@ export function RoomHeader({
   roomCode,
   status,
   partner,
+  partnerStatus = 'waiting',
   drift = 0,
   onSyncNow,
   onLeave,
@@ -56,12 +58,17 @@ export function RoomHeader({
           {status === 'connected' ? (
             partner ? (
               <>
-                <StatusDot status="online" label="Partner connected" />
+                <StatusDot status="online" />
                 <span className="font-medium text-text">{partner.name}</span>
+              </>
+            ) : partnerStatus === 'left' ? (
+              <>
+                <StatusDot status="warn" />
+                <span className="text-warn">Partner left</span>
               </>
             ) : (
               <>
-                <StatusDot status="warn" pulse label="Waiting for partner" />
+                <StatusDot status="warn" pulse />
                 <span className="text-muted">Waiting for partner…</span>
               </>
             )

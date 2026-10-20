@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
+  createRoomInDb,
   ensureAuth,
   joinRoomInDb,
   leaveRoomInDb,
@@ -15,9 +16,11 @@ export interface RoomPeer {
 }
 
 export type RoomConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+export type PartnerConnectionStatus = 'waiting' | 'connected' | 'left';
 
 export interface UseRoomOptions {
   displayName: string;
+  isCreator?: boolean;
 }
 
 export interface UseRoomReturn {
@@ -26,6 +29,7 @@ export interface UseRoomReturn {
   error: string | null;
   self: RoomPeer | null;
   partner: RoomPeer | null;
+  partnerStatus: PartnerConnectionStatus;
   channel: DuetChannel | null;
   leaveRoom: () => Promise<void>;
 }
@@ -35,8 +39,10 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
   const [error, setError] = useState<string | null>(null);
   const [self, setSelf] = useState<RoomPeer | null>(null);
   const [partner, setPartner] = useState<RoomPeer | null>(null);
+  const [partnerStatus, setPartnerStatus] = useState<PartnerConnectionStatus>('waiting');
   const [channel, setChannel] = useState<DuetChannel | null>(null);
   const isUnmountedRef = useRef(false);
+  const hadPartnerRef = useRef(false);
 
   const updatePresence = useCallback((chan: DuetChannel, currentUserId: string) => {
     const state = chan.presenceState<PresencePayload>();
@@ -62,6 +68,14 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
     if (!isUnmountedRef.current) {
       if (foundSelf) setSelf(foundSelf);
       setPartner(foundPartner);
+      if (foundPartner) {
+        hadPartnerRef.current = true;
+        setPartnerStatus('connected');
+      } else if (hadPartnerRef.current) {
+        setPartnerStatus('left');
+      } else {
+        setPartnerStatus('waiting');
+      }
     }
   }, []);
 
@@ -109,6 +123,17 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
           name: options.displayName,
           joinedAt: Date.now(),
         });
+
+        // If we are creating the room, ensure it is created in the database first
+        if (options.isCreator) {
+          const createRes = await createRoomInDb(roomCode, userId);
+          if (!live) return;
+          if (!createRes.success) {
+            setStatus('error');
+            setError(createRes.error || 'Failed to create room.');
+            return;
+          }
+        }
 
         // Register in database and enforce max 2 members
         const joinResult = await joinRoomInDb(roomCode, userId, options.displayName);
@@ -179,7 +204,7 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
         supabase.removeChannel(channel).catch(() => {});
       }
     };
-  }, [roomCode, options.displayName, updatePresence]);
+  }, [roomCode, options.displayName, options.isCreator, updatePresence]);
 
   return {
     roomCode,
@@ -187,6 +212,7 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
     error,
     self,
     partner,
+    partnerStatus,
     channel,
     leaveRoom,
   };

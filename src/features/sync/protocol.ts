@@ -8,6 +8,7 @@ export const SyncMsgSchema = z.object({
   rate: z.number().default(1),
   at: z.number(),
   heartbeat: z.boolean().optional(),
+  request: z.boolean().optional(),
 });
 export type SyncMsg = z.infer<typeof SyncMsgSchema>;
 

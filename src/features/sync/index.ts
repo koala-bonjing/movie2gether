@@ -5,3 +5,4 @@ export * from './authority';
 export * from './useSync';
 export * from './DriftIndicator';
 export * from './MediaMismatchDialog';
+export * from './SyncDevOverlay';

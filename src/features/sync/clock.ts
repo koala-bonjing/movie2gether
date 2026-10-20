@@ -43,6 +43,7 @@ export class ClockEstimator {
   private maxSamples: number;
   private smoothedOffset: number | null = null;
   private lowestRtt: number = 0;
+  private lastBestSample: ClockSample | null = null;
 
   constructor(maxSamples = 8) {
     this.maxSamples = maxSamples;
@@ -58,7 +59,10 @@ export class ClockEstimator {
     const best = selectLowestRttSample(this.samples);
     if (best) {
       this.lowestRtt = best.rtt;
-      this.smoothedOffset = applyEma(this.smoothedOffset, best.offset);
+      if (best !== this.lastBestSample) {
+        this.smoothedOffset = applyEma(this.smoothedOffset, best.offset);
+        this.lastBestSample = best;
+      }
     }
     return sample;
   }
@@ -67,6 +71,7 @@ export class ClockEstimator {
     this.samples = [];
     this.smoothedOffset = null;
     this.lowestRtt = 0;
+    this.lastBestSample = null;
   }
 
   getOffset(): number {

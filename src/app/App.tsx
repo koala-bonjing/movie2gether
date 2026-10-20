@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { PlayerView, type MediaInfo } from '../features/player';
 import { LobbyView } from '../features/lobby';
 import { useRoom, RoomHeader } from '../features/room';
-import { useSync, MediaMismatchDialog } from '../features/sync';
+import { useSync, MediaMismatchDialog, SyncDevOverlay } from '../features/sync';
 import { Toast } from '../ui';
 
 export function App() {
@@ -24,6 +24,8 @@ export function App() {
     }
   });
 
+  const [isCreator, setIsCreator] = useState(false);
+
   // Keep URL in sync with roomCode
   useEffect(() => {
     if (roomCode) {
@@ -33,13 +35,15 @@ export function App() {
     }
   }, [roomCode]);
 
-  const handleJoin = (code: string, name: string) => {
+  const handleJoin = (code: string, name: string, creator = false) => {
     setDisplayName(name);
     setRoomCode(code);
+    setIsCreator(creator);
   };
 
   const handleLeave = () => {
     setRoomCode(null);
+    setIsCreator(false);
   };
 
   if (!roomCode) {
@@ -54,6 +58,7 @@ export function App() {
     <RoomSession
       roomCode={roomCode}
       displayName={displayName || 'Anonymous'}
+      isCreator={isCreator}
       onLeave={handleLeave}
     />
   );
@@ -62,16 +67,18 @@ export function App() {
 function RoomSession({
   roomCode,
   displayName,
+  isCreator,
   onLeave,
 }: {
   roomCode: string;
   displayName: string;
+  isCreator: boolean;
   onLeave: () => void;
 }) {
-  const room = useRoom(roomCode, { displayName });
+  const room = useRoom(roomCode, { displayName, isCreator });
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [localMedia, setLocalMedia] = useState<MediaInfo | null>(null);
-  const [dismissMismatch, setDismissMismatch] = useState(false);
+  const [dismissedHash, setDismissedHash] = useState<string | null>(null);
 
   const sync = useSync(videoElement, room.channel, room.self?.userId ?? null);
 
@@ -96,6 +103,8 @@ function RoomSession({
     onLeave();
   };
 
+  const showMismatch = sync.partnerMedia && localMedia && dismissedHash !== sync.partnerMedia.hash;
+
   return (
     <main className="mx-auto flex min-h-dvh max-w-5xl flex-col gap-6 p-4 sm:p-8">
       <RoomHeader
@@ -103,6 +112,7 @@ function RoomSession({
         status={room.status}
         self={room.self}
         partner={room.partner}
+        partnerStatus={room.partnerStatus}
         drift={sync.drift}
         onSyncNow={sync.syncNow}
         onLeave={handleLeave}
@@ -127,13 +137,15 @@ function RoomSession({
         partnerBuffering={sync.partnerBuffering}
       />
 
-      {!dismissMismatch && sync.partnerMedia && localMedia && (
+      {showMismatch && sync.partnerMedia && localMedia && (
         <MediaMismatchDialog
           localMedia={localMedia}
           partnerMedia={sync.partnerMedia}
-          onDismiss={() => setDismissMismatch(true)}
+          onDismiss={() => setDismissedHash(sync.partnerMedia?.hash ?? null)}
         />
       )}
+
+      <SyncDevOverlay sync={sync} roomCode={roomCode} />
 
       <div className="fixed bottom-4 right-4 z-50">
         <Toast message={`Room ${roomCode}: ${room.status === 'connected' ? 'Ready' : room.status}`} />

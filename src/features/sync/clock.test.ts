@@ -67,6 +67,11 @@ describe('clock sync estimation (NTP)', () => {
     // EMA: 0.2 * 1000 + 0.8 * 900 = 920
     expect(estimator.getOffset()).toBeCloseTo(920);
 
+    // High RTT jitter sample arrives: should not degrade or compound EMA with old sample
+    estimator.addSample(3000, 4500, 3400); // RTT 400, offset 1300 (higher RTT)
+    expect(estimator.getLowestRtt()).toBe(100);
+    expect(estimator.getOffset()).toBeCloseTo(920);
+
     estimator.reset();
     expect(estimator.getSampleCount()).toBe(0);
     expect(estimator.getOffset()).toBe(0);

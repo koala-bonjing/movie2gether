@@ -40,8 +40,10 @@ test.describe('Playback Synchronization E2E', () => {
     await pageBob.getByRole('button', { name: 'Load', exact: true }).click();
     await expect(pageBob.locator('video')).toBeAttached();
 
-    // Drift indicator should indicate In sync
+    // Drift indicator should indicate In sync and dev debug HUD is active
     await expect(pageAlice.getByText(/In sync|\d+ms drift/)).toBeVisible({ timeout: 10000 });
+    await expect(pageAlice.getByTestId('sync-dev-overlay')).toBeVisible();
+    await expect(pageAlice.getByText('Sync Debug HUD')).toBeVisible();
 
     // 5. Alice plays video
     const alicePlay = pageAlice.getByRole('button', { name: 'Play', exact: true });
@@ -52,6 +54,9 @@ test.describe('Playback Synchronization E2E', () => {
     await expect(pageBob.getByRole('button', { name: 'Pause', exact: true })).toBeVisible({
       timeout: 10000,
     });
+
+    // Wait for suppression window (SYNC.suppressMs = 400) to settle
+    await pageBob.waitForTimeout(500);
 
     // 6. Bob pauses video
     const bobPause = pageBob.getByRole('button', { name: 'Pause', exact: true });

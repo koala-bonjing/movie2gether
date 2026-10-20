@@ -42,6 +42,8 @@ create policy rooms_insert  on rooms for insert to authenticated with check (cre
 create policy members_select on room_members for select to authenticated using (is_member(room_code));
 create policy members_insert on room_members for insert to authenticated
   with check (user_id = auth.uid() and member_count(room_code) < 2);
+create policy members_delete on room_members for delete to authenticated
+  using (user_id = auth.uid());
 create policy messages_select on messages for select to authenticated using (is_member(room_code));
 create policy messages_insert on messages for insert to authenticated
   with check (user_id = auth.uid() and is_member(room_code));

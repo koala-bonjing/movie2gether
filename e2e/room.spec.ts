@@ -58,8 +58,23 @@ test.describe('Lobby and Room E2E Flow', () => {
     await pageCharlie.goto(`/?room=${roomCode}`);
     await expect(pageCharlie.getByText(/Room is full \(max 2 people\)/)).toBeVisible({ timeout: 10000 });
 
-    await pageAlice.close();
+    // Close Bob's page -> Alice should see "Partner left"
     await pageBob.close();
+    await expect(pageAlice.getByText('Partner left')).toBeVisible({ timeout: 10000 });
+
+    await pageAlice.close();
     await pageCharlie.close();
+  });
+
+  test('shows error when attempting to join a non-existent room', async ({ page }) => {
+    await page.goto('/');
+    await page.getByPlaceholder('What should your partner call you?').fill('Dave');
+    await page.getByRole('button', { name: 'Join with Code' }).click();
+
+    const otpFirst = page.getByRole('group', { name: 'Room code' }).locator('input').first();
+    await otpFirst.fill('XYZ888');
+    await page.getByRole('button', { name: 'Join Room' }).click();
+
+    await expect(page.getByText('Room not found. Please check the room code.')).toBeVisible({ timeout: 10000 });
   });
 });

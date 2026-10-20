@@ -63,4 +63,20 @@ describe('Room and membership store', () => {
     const join3 = await joinRoomInDb(code, 'user-3', 'Charlie');
     expect(join3.success).toBe(true);
   });
+
+  it('rejects joining a room that does not exist', async () => {
+    const res = await joinRoomInDb('NOTEXI', 'user-99', 'Eve');
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('Room not found');
+  });
+
+  it('rejects creating a room code that already exists', async () => {
+    const code = 'EXISTS';
+    const first = await createRoomInDb(code, 'user-1');
+    expect(first.success).toBe(true);
+
+    const duplicate = await createRoomInDb(code, 'user-2');
+    expect(duplicate.success).toBe(false);
+    expect(duplicate.error).toContain('already exists');
+  });
 });

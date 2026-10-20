@@ -35,6 +35,20 @@ describe('sync protocol validation', () => {
       expect(parsed?.rate).toBe(1);
     });
 
+    it('parses sync state request messages', () => {
+      const requestMsg = {
+        seq: 0,
+        from: 'user-joiner',
+        playing: false,
+        pos: 0,
+        rate: 1,
+        at: 1700000000000,
+        request: true,
+      };
+      const parsed = safeParseSyncMsg(requestMsg);
+      expect(parsed?.request).toBe(true);
+    });
+
     it('rejects invalid sync payloads', () => {
       expect(safeParseSyncMsg(null)).toBeNull();
       expect(safeParseSyncMsg({ seq: 'invalid' })).toBeNull();

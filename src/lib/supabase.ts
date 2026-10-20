@@ -52,9 +52,12 @@ class MockChannel implements DuetChannel {
   private presenceJoinListeners: Set<(payload: { key: string; newPresences: PresencePayload[] }) => void> = new Set();
   private presenceLeaveListeners: Set<(payload: { key: string; leftPresences: PresencePayload[] }) => void> = new Set();
   private presences: Map<string, PresencePayload> = new Map();
+  private lastSeen: Map<string, number> = new Map();
   private myPresence: PresencePayload | null = null;
   private myKey: string;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private sweepTimer: ReturnType<typeof setInterval> | null = null;
+  private handleUnload: (() => void) | null = null;
 
   constructor(topic: string, opts?: { config?: { presence?: { key?: string } } }) {
     this.topic = topic;
@@ -76,6 +79,7 @@ class MockChannel implements DuetChannel {
         } else if (data.type === 'presence_announcement') {
           const prev = this.presences.get(data.key);
           this.presences.set(data.key, data.payload);
+          this.lastSeen.set(data.key, Date.now());
           if (!prev) {
             for (const fn of this.presenceJoinListeners) {
               fn({ key: data.key, newPresences: [data.payload] });
@@ -97,6 +101,7 @@ class MockChannel implements DuetChannel {
           const existing = this.presences.get(data.key);
           if (existing) {
             this.presences.delete(data.key);
+            this.lastSeen.delete(data.key);
             for (const fn of this.presenceLeaveListeners) {
               fn({ key: data.key, leftPresences: [existing] });
             }
@@ -106,6 +111,34 @@ class MockChannel implements DuetChannel {
           }
         }
       };
+
+      // Periodic check to evict peers that haven't sent presence within 12 seconds
+      this.sweepTimer = setInterval(() => {
+        const now = Date.now();
+        for (const [key, last] of Array.from(this.lastSeen.entries())) {
+          if (key !== this.myKey && now - last > 12000) {
+            const stale = this.presences.get(key);
+            this.presences.delete(key);
+            this.lastSeen.delete(key);
+            if (stale) {
+              for (const fn of this.presenceLeaveListeners) {
+                fn({ key, leftPresences: [stale] });
+              }
+              for (const fn of this.presenceSyncListeners) {
+                fn();
+              }
+            }
+          }
+        }
+      }, 3000);
+
+      if (typeof window !== 'undefined') {
+        this.handleUnload = () => {
+          this.untrack().catch(() => {});
+        };
+        window.addEventListener('pagehide', this.handleUnload);
+        window.addEventListener('beforeunload', this.handleUnload);
+      }
     }
   }
 
@@ -210,6 +243,15 @@ class MockChannel implements DuetChannel {
 
   async unsubscribe(): Promise<'ok' | 'timed out' | 'error'> {
     await this.untrack();
+    if (this.sweepTimer) {
+      clearInterval(this.sweepTimer);
+      this.sweepTimer = null;
+    }
+    if (this.handleUnload && typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', this.handleUnload);
+      window.removeEventListener('beforeunload', this.handleUnload);
+      this.handleUnload = null;
+    }
     if (this.bc) {
       this.bc.close();
       this.bc = null;
@@ -218,6 +260,7 @@ class MockChannel implements DuetChannel {
     this.presenceSyncListeners.clear();
     this.presenceJoinListeners.clear();
     this.presenceLeaveListeners.clear();
+    this.lastSeen.clear();
     return 'ok';
   }
 
@@ -314,9 +357,13 @@ export const safeSessionStorage = {
 
 function getMockRooms(): Record<string, MockRoom> {
   try {
-    return JSON.parse(safeStorage.getItem(STORAGE_KEY_ROOMS) || '{}');
+    const rooms = JSON.parse(safeStorage.getItem(STORAGE_KEY_ROOMS) || '{}');
+    if (!rooms['DEMO01']) {
+      rooms['DEMO01'] = { code: 'DEMO01', created_by: 'system', created_at: new Date().toISOString() };
+    }
+    return rooms;
   } catch {
-    return {};
+    return { DEMO01: { code: 'DEMO01', created_by: 'system', created_at: new Date().toISOString() } };
   }
 }
 
@@ -452,13 +499,44 @@ export async function joinRoomInDb(
   displayName: string,
 ): Promise<{ success: boolean; error?: string }> {
   if (rawSupabase) {
-    // Check membership or capacity via RLS-protected insert
+    // Check if room exists
+    const { data: room, error: roomError } = await rawSupabase
+      .from('rooms')
+      .select('code')
+      .eq('code', code)
+      .maybeSingle();
+
+    if (roomError) {
+      return { success: false, error: roomError.message };
+    }
+    if (!room) {
+      return { success: false, error: 'Room not found. Please check the room code.' };
+    }
+
+    // Check if already a member (re-join / refresh)
+    const { data: existingMember } = await rawSupabase
+      .from('room_members')
+      .select('user_id')
+      .match({ room_code: code, user_id: userId })
+      .maybeSingle();
+
+    if (existingMember) {
+      return { success: true };
+    }
+
+    // Insert membership
     const { error } = await rawSupabase.from('room_members').insert({
       room_code: code,
       user_id: userId,
       display_name: displayName,
     });
     if (error) {
+      if (error.code === '23505') {
+        return { success: true };
+      }
+      if (error.code === '23503') {
+        return { success: false, error: 'Room not found. Please check the room code.' };
+      }
       if (error.message.includes('violates row-level security') || error.code === '42501') {
         return { success: false, error: 'Room is full (max 2 people).' };
       }
@@ -470,9 +548,7 @@ export async function joinRoomInDb(
   // Mock implementation
   const rooms = getMockRooms();
   if (!rooms[code]) {
-    // If not found in mock store, auto-register room in dev mock so tests/invites can join
-    rooms[code] = { code, created_by: userId, created_at: new Date().toISOString() };
-    saveMockRooms(rooms);
+    return { success: false, error: 'Room not found. Please check the room code.' };
   }
 
   const members = getMockMembers();
