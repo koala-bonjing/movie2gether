@@ -4,6 +4,7 @@ import { LobbyView } from '../features/lobby';
 import { useRoom, RoomHeader } from '../features/room';
 import { useSync, MediaMismatchDialog, SyncDevOverlay } from '../features/sync';
 import { useChat, ChatView } from '../features/chat';
+import { useCall, CallSection } from '../features/call';
 import { Toast } from '../ui';
 
 export function App() {
@@ -91,6 +92,12 @@ function RoomSession({
     initialOpen: true,
   });
 
+  const call = useCall({
+    channel: room.channel,
+    selfUserId: room.self?.userId ?? null,
+    partnerUserId: room.partner?.userId ?? null,
+  });
+
   const { broadcastMedia } = sync;
   const selfUserId = room.self?.userId;
 
@@ -108,6 +115,7 @@ function RoomSession({
   }, [localMedia, selfUserId, broadcastMedia]);
 
   const handleLeave = async () => {
+    call.endCall();
     await room.leaveRoom();
     onLeave();
   };
@@ -143,7 +151,11 @@ function RoomSession({
         </div>
       )}
 
-      <div className={`grid grid-cols-1 gap-6 items-start ${chat.isOpen ? 'lg:grid-cols-[1fr_340px]' : ''}`}>
+      <div
+        className={`grid grid-cols-1 gap-6 items-start ${
+          chat.isOpen || call.connectionState !== 'idle' ? 'lg:grid-cols-[1fr_360px]' : ''
+        }`}
+      >
         <div className="flex flex-col gap-6 min-w-0">
           <PlayerView
             onVideoRef={setVideoElement}
@@ -160,15 +172,25 @@ function RoomSession({
           )}
         </div>
 
-        {chat.isOpen && (
-          <aside className="h-[520px] w-full shrink-0">
-            <ChatView
-              messages={chat.messages}
-              selfUserId={room.self?.userId ?? null}
+        {(chat.isOpen || call.connectionState !== 'idle') && (
+          <aside className="flex flex-col gap-4 w-full shrink-0">
+            <CallSection
+              call={call}
               partnerName={room.partner?.name}
-              onSendMessage={chat.sendMessage}
-              onClose={() => chat.setIsOpen(false)}
+              selfName={room.self?.name}
             />
+
+            {chat.isOpen && (
+              <div className="h-[460px] w-full">
+                <ChatView
+                  messages={chat.messages}
+                  selfUserId={room.self?.userId ?? null}
+                  partnerName={room.partner?.name}
+                  onSendMessage={chat.sendMessage}
+                  onClose={() => chat.setIsOpen(false)}
+                />
+              </div>
+            )}
           </aside>
         )}
       </div>
