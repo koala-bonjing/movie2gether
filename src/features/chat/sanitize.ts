@@ -30,13 +30,23 @@ export function parseSafeTokens(text: string): MessageToken[] {
       });
     }
 
-    // Handle trailing punctuation like 'https://example.com/test.' -> link + '.'
+    // Strip trailing punctuation and unmatched closing parens
     let cleanUrl = rawUrl;
     let trailingPunctuation = '';
-    const punctMatch = rawUrl.match(TRAILING_PUNCTUATION_REGEX);
-    if (punctMatch) {
-      trailingPunctuation = punctMatch[0];
-      cleanUrl = rawUrl.slice(0, -trailingPunctuation.length);
+
+    while (cleanUrl.length > 0) {
+      const punctMatch = cleanUrl.match(TRAILING_PUNCTUATION_REGEX);
+      if (punctMatch) {
+        trailingPunctuation = punctMatch[0] + trailingPunctuation;
+        cleanUrl = cleanUrl.slice(0, -punctMatch[0].length);
+        continue;
+      }
+      if (cleanUrl.endsWith(')') && !cleanUrl.includes('(')) {
+        trailingPunctuation = ')' + trailingPunctuation;
+        cleanUrl = cleanUrl.slice(0, -1);
+        continue;
+      }
+      break;
     }
 
     let isValid = false;

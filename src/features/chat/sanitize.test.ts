@@ -30,6 +30,22 @@ describe('chat sanitization & linkification', () => {
     ]);
   });
 
+  it('handles URLs enclosed in parentheses while preserving matched parens inside URLs', () => {
+    const enclosed = parseSafeTokens('Check this link (https://example.com/path).');
+    expect(enclosed).toEqual([
+      { type: 'text', value: 'Check this link (' },
+      { type: 'link', href: 'https://example.com/path', text: 'https://example.com/path' },
+      { type: 'text', value: ').' },
+    ]);
+
+    const wiki = parseSafeTokens('Read https://en.wikipedia.org/wiki/Movie_(film) for info');
+    expect(wiki).toEqual([
+      { type: 'text', value: 'Read ' },
+      { type: 'link', href: 'https://en.wikipedia.org/wiki/Movie_(film)', text: 'https://en.wikipedia.org/wiki/Movie_(film)' },
+      { type: 'text', value: ' for info' },
+    ]);
+  });
+
   it('does NOT linkify unsafe protocols like javascript: or data:', () => {
     const unsafeText = 'javascript:alert(1) and data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==';
     const tokens = parseSafeTokens(unsafeText);

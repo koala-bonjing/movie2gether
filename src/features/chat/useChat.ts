@@ -54,6 +54,11 @@ export function useChat({
     });
   }, []);
 
+  const selfUserIdRef = useRef(selfUserId);
+  useEffect(() => {
+    selfUserIdRef.current = selfUserId;
+  }, [selfUserId]);
+
   // Load message history on room load if persistence enabled
   useEffect(() => {
     if (!persist || !roomCode) return;
@@ -65,12 +70,14 @@ export function useChat({
         setMessages((prev) => {
           const combined = [...history, ...prev];
           const unique: ChatMsg[] = [];
+          const localSeen = new Set<string>();
           for (const m of combined) {
-            if (!seenIdsRef.current.has(m.id)) {
-              seenIdsRef.current.add(m.id);
+            if (!localSeen.has(m.id)) {
+              localSeen.add(m.id);
               unique.push(m);
             }
           }
+          seenIdsRef.current = localSeen;
           unique.sort((a, b) => a.at - b.at);
           return unique;
         });
@@ -102,13 +109,13 @@ export function useChat({
       setMessages((prev) => [...prev, parsed]);
 
       // If message is from partner and chat is closed, increment unread counter
-      if (parsed.from !== selfUserId && !isOpenRef.current) {
+      if (parsed.from !== selfUserIdRef.current && !isOpenRef.current) {
         setRawUnreadCount((c) => c + 1);
       }
     };
 
     channel.on('broadcast', { event: 'chat' }, handleChat);
-  }, [channel, selfUserId]);
+  }, [channel]);
 
   const sendMessage = useCallback(
     async (text: string): Promise<boolean> => {

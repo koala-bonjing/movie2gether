@@ -64,5 +64,22 @@ test.describe('Phase 4: Real-time Text Chat E2E', () => {
     // Ensure the HTML tag was not rendered as a DOM element
     const xssElement = await pageBob.$('#xss-test');
     expect(xssElement).toBeNull();
+
+    // 6. Test Unread badge: Bob closes chat, Alice sends message, Bob gets unread badge
+    const bobToggleChatBtn = pageBob.getByRole('button', { name: 'Hide chat' });
+    await bobToggleChatBtn.click();
+    await expect(pageBob.getByTestId('chat-view')).not.toBeVisible();
+
+    await aliceInput.fill('Checking unread badge counter!');
+    await pageAlice.getByTestId('chat-send-btn').click();
+
+    const unreadBadge = pageBob.getByTestId('chat-unread-badge');
+    await expect(unreadBadge).toBeVisible({ timeout: 5000 });
+    await expect(unreadBadge).toHaveText('1');
+
+    // Bob re-opens chat -> badge clears and message is visible
+    await pageBob.getByRole('button', { name: 'Show chat' }).click();
+    await expect(unreadBadge).not.toBeVisible();
+    await expect(pageBob.getByText('Checking unread badge counter!')).toBeVisible();
   });
 });

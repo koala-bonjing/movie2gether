@@ -6,6 +6,7 @@ import { getIceServers, isPolitePeer, parseRtpVideoStats, type VideoStats } from
 
 export type CallConnectionState =
   | 'idle'
+  | 'incoming'
   | 'requesting-media'
   | 'connecting'
   | 'connected'
@@ -31,7 +32,7 @@ export interface UseCallReturn {
   remoteMicOn: boolean;
   remoteStats: VideoStats | null;
   startCall: () => Promise<void>;
-  endCall: () => void;
+  endCall: (notifyPartner?: boolean) => void;
   toggleCam: () => void;
   toggleMic: () => void;
   restartIce: () => void;
@@ -57,62 +58,112 @@ export function useCall({
   const localStreamRef = useRef<MediaStream | null>(null);
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
+  const pendingRemoteOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const statsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
 
+  const isCamOnRef = useRef(isCamOn);
+  useEffect(() => {
+    isCamOnRef.current = isCamOn;
+  }, [isCamOn]);
+
+  const isMicOnRef = useRef(isMicOn);
+  useEffect(() => {
+    isMicOnRef.current = isMicOn;
+  }, [isMicOn]);
+
+  const channelRef = useRef(channel);
+  useEffect(() => {
+    channelRef.current = channel;
+  }, [channel]);
+
+  const selfUserIdRef = useRef(selfUserId);
+  useEffect(() => {
+    selfUserIdRef.current = selfUserId;
+  }, [selfUserId]);
+
+  const partnerUserIdRef = useRef(partnerUserId);
+  useEffect(() => {
+    partnerUserIdRef.current = partnerUserId;
+  }, [partnerUserId]);
+
   // Helper to send signal messages over Supabase broadcast
-  const sendSignal = useCallback(
-    (data: SignalMsg['data']) => {
-      if (!channel || !selfUserId || !partnerUserId) return;
-      channel
-        .send({
-          type: 'broadcast',
-          event: 'signal',
-          payload: {
-            from: selfUserId,
-            to: partnerUserId,
-            data,
-          },
-        })
-        .catch((err) => {
-          console.warn('Failed to send signal:', err);
-        });
+  const sendSignal = useCallback((data: SignalMsg['data']) => {
+    const ch = channelRef.current;
+    const selfId = selfUserIdRef.current;
+    const partnerId = partnerUserIdRef.current;
+    if (!ch || !selfId || !partnerId) return;
+    ch.send({
+      type: 'broadcast',
+      event: 'signal',
+      payload: {
+        from: selfId,
+        to: partnerId,
+        data,
+      },
+    }).catch((err) => {
+      console.warn('Failed to send signal:', err);
+    });
+  }, []);
+
+  const sendMediaState = useCallback(
+    (camOn: boolean, micOn: boolean) => {
+      sendSignal({
+        type: 'media-state',
+        camOn,
+        micOn,
+      });
     },
-    [channel, selfUserId, partnerUserId],
+    [sendSignal],
   );
 
-  const endCall = useCallback(() => {
-    if (statsTimerRef.current) {
-      clearInterval(statsTimerRef.current);
-      statsTimerRef.current = null;
-    }
+  const endCall = useCallback(
+    (notifyPartner = true) => {
+      if (notifyPartner) {
+        sendSignal({ type: 'hang-up' });
+      }
 
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-    }
+      if (statsTimerRef.current) {
+        clearInterval(statsTimerRef.current);
+        statsTimerRef.current = null;
+      }
 
-    if (pcRef.current) {
-      pcRef.current.onicecandidate = null;
-      pcRef.current.onnegotiationneeded = null;
-      pcRef.current.ontrack = null;
-      pcRef.current.onconnectionstatechange = null;
-      pcRef.current.oniceconnectionstatechange = null;
-      pcRef.current.close();
-      pcRef.current = null;
-    }
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
+        localStreamRef.current = null;
+      }
 
-    if (isMountedRef.current) {
-      setLocalStream(null);
-      setRemoteStream(null);
-      setConnectionState('idle');
-      setErrorMessage(null);
-      setRemoteStats(null);
-      setIsAudioOnly(false);
-      setIsCamOn(true);
-      setIsMicOn(true);
-    }
-  }, []);
+      if (pcRef.current) {
+        pcRef.current.onicecandidate = null;
+        pcRef.current.onnegotiationneeded = null;
+        pcRef.current.ontrack = null;
+        pcRef.current.onconnectionstatechange = null;
+        pcRef.current.oniceconnectionstatechange = null;
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+
+      pendingRemoteOfferRef.current = null;
+      pendingCandidatesRef.current = [];
+      makingOfferRef.current = false;
+      ignoreOfferRef.current = false;
+
+      if (isMountedRef.current) {
+        setLocalStream(null);
+        setRemoteStream(null);
+        setConnectionState('idle');
+        setErrorMessage(null);
+        setRemoteStats(null);
+        setIsAudioOnly(false);
+        setIsCamOn(true);
+        setIsMicOn(true);
+        setRemoteCamOn(true);
+        setRemoteMicOn(true);
+      }
+    },
+    [sendSignal],
+  );
 
   const restartIce = useCallback(() => {
     if (pcRef.current && typeof pcRef.current.restartIce === 'function') {
@@ -128,19 +179,35 @@ export function useCall({
     if (!localStreamRef.current) return;
     const videoTrack = localStreamRef.current.getVideoTracks()[0];
     if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-      setIsCamOn(videoTrack.enabled);
+      const next = !videoTrack.enabled;
+      videoTrack.enabled = next;
+      setIsCamOn(next);
+      sendMediaState(next, isMicOnRef.current);
     }
-  }, []);
+  }, [sendMediaState]);
 
   const toggleMic = useCallback(() => {
     if (!localStreamRef.current) return;
     const audioTrack = localStreamRef.current.getAudioTracks()[0];
     if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      setIsMicOn(audioTrack.enabled);
+      const next = !audioTrack.enabled;
+      audioTrack.enabled = next;
+      setIsMicOn(next);
+      sendMediaState(isCamOnRef.current, next);
     }
-  }, []);
+  }, [sendMediaState]);
+
+  const drainPendingCandidates = async (pc: RTCPeerConnection) => {
+    const queue = [...pendingCandidatesRef.current];
+    pendingCandidatesRef.current = [];
+    for (const cand of queue) {
+      try {
+        await pc.addIceCandidate(cand);
+      } catch (err) {
+        console.warn('Failed to add buffered candidate:', err);
+      }
+    }
+  };
 
   // Perfect Negotiation PeerConnection setup
   const initPeerConnection = useCallback(
@@ -165,16 +232,6 @@ export function useCall({
         const [incomingStream] = event.streams;
         const targetStream = incomingStream || new MediaStream([event.track]);
         setRemoteStream(targetStream);
-
-        // Track mute/unmute states on remote tracks
-        event.track.onmute = () => {
-          if (event.track.kind === 'video') setRemoteCamOn(false);
-          if (event.track.kind === 'audio') setRemoteMicOn(false);
-        };
-        event.track.onunmute = () => {
-          if (event.track.kind === 'video') setRemoteCamOn(true);
-          if (event.track.kind === 'audio') setRemoteMicOn(true);
-        };
       };
 
       // Perfect Negotiation offer generation
@@ -214,11 +271,13 @@ export function useCall({
         if (state === 'connected') {
           setConnectionState('connected');
           setErrorMessage(null);
+          // Broadcast current media state to partner
+          sendMediaState(isCamOnRef.current, isMicOnRef.current);
         } else if (state === 'disconnected') {
           setConnectionState('disconnected');
         } else if (state === 'failed') {
           setConnectionState('failed');
-          setErrorMessage('P2P connection failed. Check your network or firewall settings.');
+          setErrorMessage('P2P connection failed. Check your network or firewall settings (TURN may be required).');
         }
       };
 
@@ -246,7 +305,7 @@ export function useCall({
 
       return pc;
     },
-    [sendSignal, restartIce],
+    [sendSignal, sendMediaState, restartIce],
   );
 
   const startCall = useCallback(async () => {
@@ -297,46 +356,89 @@ export function useCall({
       setIsMicOn(true);
       setConnectionState('connecting');
 
-      initPeerConnection(stream);
+      const pc = initPeerConnection(stream);
+
+      // If partner already sent an offer before we clicked Start Call, answer it now
+      if (pendingRemoteOfferRef.current) {
+        const pendingDesc = pendingRemoteOfferRef.current;
+        pendingRemoteOfferRef.current = null;
+        await pc.setRemoteDescription(pendingDesc);
+        await drainPendingCandidates(pc);
+        await pc.setLocalDescription();
+        if (pc.localDescription) {
+          sendSignal({
+            type: 'description',
+            description: {
+              type: pc.localDescription.type,
+              sdp: pc.localDescription.sdp,
+            },
+          });
+        }
+        sendMediaState(!audioOnly, true);
+      }
     } catch (mediaErr) {
       console.error('Microphone and camera access denied:', mediaErr);
       setConnectionState('denied');
       setErrorMessage('Camera/microphone access was denied. Please allow permissions to start the call.');
     }
-  }, [initPeerConnection]);
+  }, [initPeerConnection, sendSignal, sendMediaState]);
 
   // Handle incoming signaling messages from partner
   useEffect(() => {
-    if (!channel || !selfUserId || !partnerUserId) return;
+    if (!channel) return;
 
     const handleSignal = async ({ payload }: { payload: unknown }) => {
       const parsed = safeParseSignalMsg(payload);
       if (!parsed) return;
 
-      // Must be addressed to us and from our partner
-      if (parsed.to !== selfUserId || parsed.from !== partnerUserId) return;
+      const selfId = selfUserIdRef.current;
+      const partnerId = partnerUserIdRef.current;
+      if (!selfId || !partnerId) return;
 
-      const pc = pcRef.current;
-      if (!pc) {
-        // If we haven't started local call yet, we can accept if partner initiated
+      // Must be addressed to us and from our partner
+      if (parsed.to !== selfId || parsed.from !== partnerId) return;
+
+      const { data } = parsed;
+
+      // 1. Media state synchronization (mute / camera toggle)
+      if (data.type === 'media-state') {
+        setRemoteCamOn(data.camOn);
+        setRemoteMicOn(data.micOn);
         return;
       }
 
-      const polite = isPolitePeer(selfUserId, partnerUserId);
-      const { data } = parsed;
+      // 2. Hang up by remote partner
+      if (data.type === 'hang-up') {
+        endCall(false);
+        return;
+      }
 
-      try {
-        if (data.type === 'description') {
-          const desc = data.description as unknown as RTCSessionDescriptionInit;
-          const isOffer = desc.type === 'offer';
-          const offerCollision = isOffer && (makingOfferRef.current || pc.signalingState !== 'stable');
+      // 3. Descriptions (offer / answer)
+      if (data.type === 'description') {
+        const desc = data.description as unknown as RTCSessionDescriptionInit;
+        const pc = pcRef.current;
 
-          ignoreOfferRef.current = !polite && offerCollision;
-          if (ignoreOfferRef.current) {
-            return;
+        // If we haven't started local call yet and received an offer:
+        if (!pc) {
+          if (desc.type === 'offer') {
+            pendingRemoteOfferRef.current = desc;
+            setConnectionState('incoming');
           }
+          return;
+        }
 
+        const polite = isPolitePeer(selfId, partnerId);
+        const isOffer = desc.type === 'offer';
+        const offerCollision = isOffer && (makingOfferRef.current || pc.signalingState !== 'stable');
+
+        ignoreOfferRef.current = !polite && offerCollision;
+        if (ignoreOfferRef.current) {
+          return;
+        }
+
+        try {
           await pc.setRemoteDescription(desc);
+          await drainPendingCandidates(pc);
 
           if (isOffer) {
             await pc.setLocalDescription();
@@ -350,31 +452,43 @@ export function useCall({
               });
             }
           }
-        } else if (data.type === 'candidate') {
-          try {
-            if (data.candidate) {
-              await pc.addIceCandidate(data.candidate);
-            }
-          } catch (iceErr) {
-            if (!ignoreOfferRef.current) {
-              console.warn('Error adding ICE candidate:', iceErr);
-            }
+        } catch (err) {
+          console.warn('Signaling description error:', err);
+        }
+        return;
+      }
+
+      // 4. ICE Candidates
+      if (data.type === 'candidate') {
+        if (!data.candidate) return;
+        const cand = data.candidate as unknown as RTCIceCandidateInit;
+        const pc = pcRef.current;
+
+        if (!pc || !pc.remoteDescription) {
+          // Buffer candidate until remote description is set
+          pendingCandidatesRef.current.push(cand);
+          return;
+        }
+
+        try {
+          await pc.addIceCandidate(cand);
+        } catch (iceErr) {
+          if (!ignoreOfferRef.current) {
+            console.warn('Error adding ICE candidate:', iceErr);
           }
         }
-      } catch (err) {
-        console.warn('Signaling error:', err);
       }
     };
 
     channel.on('broadcast', { event: 'signal' }, handleSignal);
-  }, [channel, selfUserId, partnerUserId, sendSignal]);
+  }, [channel, endCall, sendSignal]);
 
-  // Cleanup on unmount or when partner leaves
+  // Cleanup on unmount
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      endCall();
+      endCall(true);
     };
   }, [endCall]);
 

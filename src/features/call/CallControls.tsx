@@ -7,9 +7,13 @@ export interface CallControlsProps {
   isAudioOnly: boolean;
   onStartCall: () => void;
   onEndCall: () => void;
-  onToggleCam: () => void;
-  onToggleMic: () => void;
+  toggleCam?: () => void;
+  onToggleCam?: () => void;
+  toggleMic?: () => void;
+  onToggleMic?: () => void;
   onRetry?: () => void;
+  isFloating?: boolean;
+  onToggleFloat?: () => void;
   disabled?: boolean;
 }
 
@@ -20,11 +24,18 @@ export function CallControls({
   isAudioOnly,
   onStartCall,
   onEndCall,
+  toggleCam,
   onToggleCam,
+  toggleMic,
   onToggleMic,
   onRetry,
+  isFloating = false,
+  onToggleFloat,
   disabled = false,
 }: CallControlsProps) {
+  const handleToggleCam = onToggleCam || toggleCam;
+  const handleToggleMic = onToggleMic || toggleMic;
+
   if (connectionState === 'requesting-media') {
     return (
       <div className="flex items-center gap-2 rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs text-muted shadow-xs">
@@ -39,6 +50,8 @@ export function CallControls({
     connectionState === 'connecting';
 
   if (!isInCall) {
+    const isIncoming = connectionState === 'incoming';
+
     return (
       <div className="flex items-center gap-2">
         {connectionState === 'failed' && (
@@ -60,20 +73,24 @@ export function CallControls({
           type="button"
           onClick={onStartCall}
           disabled={disabled}
-          aria-label="Start video call"
+          aria-label={isIncoming ? 'Join incoming video call' : 'Start video call'}
           data-testid="start-call-btn"
-          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-accent/20 border border-accent/40 px-4 text-xs font-semibold text-text transition hover:bg-accent/30 active:scale-95 disabled:opacity-50"
+          className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-xs font-semibold text-text transition active:scale-95 disabled:opacity-50 ${
+            isIncoming
+              ? 'bg-accent text-bg border-accent shadow-lg shadow-accent/25 animate-pulse'
+              : 'bg-accent/20 border-accent/40 hover:bg-accent/30'
+          }`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 20 20"
             fill="currentColor"
-            className="size-4 text-accent"
+            className={`size-4 ${isIncoming ? 'text-bg' : 'text-accent'}`}
             aria-hidden="true"
           >
             <path d="M3.25 4A2.25 2.25 0 0 0 1 6.25v7.5A2.25 2.25 0 0 0 3.25 16h7.5A2.25 2.25 0 0 0 13 13.75v-7.5A2.25 2.25 0 0 0 10.75 4h-7.5ZM14.5 7.025v5.95l3.58 2.046a.75.75 0 0 0 1.17-.653V5.632a.75.75 0 0 0-1.17-.653L14.5 7.025Z" />
           </svg>
-          <span>Start call</span>
+          <span>{isIncoming ? 'Partner is calling — Join call' : 'Start call'}</span>
         </button>
       </div>
     );
@@ -84,7 +101,7 @@ export function CallControls({
       {/* Microphone toggle */}
       <button
         type="button"
-        onClick={onToggleMic}
+        onClick={handleToggleMic}
         aria-label={isMicOn ? 'Mute microphone' : 'Unmute microphone'}
         data-testid="toggle-mic-btn"
         className={`grid size-9 place-items-center rounded-full transition active:scale-95 ${
@@ -118,7 +135,7 @@ export function CallControls({
       {/* Camera toggle */}
       <button
         type="button"
-        onClick={onToggleCam}
+        onClick={handleToggleCam}
         disabled={isAudioOnly}
         aria-label={isCamOn ? 'Turn off camera' : 'Turn on camera'}
         data-testid="toggle-cam-btn"
@@ -148,6 +165,32 @@ export function CallControls({
           </svg>
         )}
       </button>
+
+      {/* Float/Dock Toggle Button */}
+      {onToggleFloat && (
+        <button
+          type="button"
+          onClick={onToggleFloat}
+          aria-label={isFloating ? 'Dock camera tile' : 'Float camera tile'}
+          data-testid="toggle-float-cam-btn"
+          title={isFloating ? 'Dock in sidebar' : 'Pop out floating bubble'}
+          className="grid size-9 place-items-center rounded-full text-text hover:bg-white/10 transition active:scale-95"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            className="size-4 text-muted hover:text-text"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M4.25 2A2.25 2.25 0 0 0 2 4.25v11.5A2.25 2.25 0 0 0 4.25 18h11.5A2.25 2.25 0 0 0 18 15.75V4.25A2.25 2.25 0 0 0 15.75 2H4.25ZM9.75 6.75a.75.75 0 0 0 0 1.5h2.19l-3.72 3.72a.75.75 0 1 0 1.06 1.06l3.72-3.72v2.19a.75.75 0 0 0 1.5 0v-4.5a.75.75 0 0 0-.75-.75h-4.5Z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </button>
+      )}
 
       {/* End call button */}
       <button

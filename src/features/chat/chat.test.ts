@@ -101,4 +101,28 @@ describe('Chat protocol & persistence', () => {
     expect(deduplicated.length).toBe(2);
     expect(deduplicated.map((m) => m.id)).toEqual(['1', '2']);
   });
+
+  it('correctly merges history with optimistic messages without dropping optimistic sends', () => {
+    const history: ChatMsg[] = [
+      { id: 'h1', from: 'alice', text: 'old message', at: 100 },
+      { id: 'h2', from: 'bob', text: 'another old', at: 200 },
+    ];
+    const optimistic: ChatMsg[] = [
+      { id: 'opt1', from: 'alice', text: 'newly typed', at: 300 },
+    ];
+
+    const combined = [...history, ...optimistic];
+    const localSeen = new Set<string>();
+    const unique: ChatMsg[] = [];
+    for (const m of combined) {
+      if (!localSeen.has(m.id)) {
+        localSeen.add(m.id);
+        unique.push(m);
+      }
+    }
+    unique.sort((a, b) => a.at - b.at);
+
+    expect(unique.length).toBe(3);
+    expect(unique.map((m) => m.id)).toEqual(['h1', 'h2', 'opt1']);
+  });
 });

@@ -65,6 +65,14 @@ export const SignalMsgSchema = z.object({
       type: z.literal('candidate'),
       candidate: z.record(z.string(), z.unknown()).nullable(),
     }),
+    z.object({
+      type: z.literal('media-state'),
+      camOn: z.boolean(),
+      micOn: z.boolean(),
+    }),
+    z.object({
+      type: z.literal('hang-up'),
+    }),
   ]),
 });
 export type SignalMsg = z.infer<typeof SignalMsgSchema>;

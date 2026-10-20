@@ -140,5 +140,23 @@ describe('sync protocol validation', () => {
       };
       expect(safeParseSignalMsg(sig)).toEqual(sig);
     });
+
+    it('parses media-state signal', () => {
+      const sig = {
+        from: 'alice',
+        to: 'bob',
+        data: { type: 'media-state', camOn: false, micOn: true },
+      };
+      expect(safeParseSignalMsg(sig)).toEqual(sig);
+    });
+
+    it('parses hang-up signal', () => {
+      const sig = {
+        from: 'alice',
+        to: 'bob',
+        data: { type: 'hang-up' },
+      };
+      expect(safeParseSignalMsg(sig)).toEqual(sig);
+    });
   });
 });

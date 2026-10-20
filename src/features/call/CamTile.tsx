@@ -23,8 +23,13 @@ export const CamTile = memo(function CamTile({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (videoRef.current && stream) {
+    if (videoRef.current) {
       videoRef.current.srcObject = stream;
+      if (stream) {
+        videoRef.current.play().catch(() => {
+          // Autoplay handled by browser policy
+        });
+      }
     }
   }, [stream]);
 
