@@ -1,2 +1,2 @@
-// Phase 2: Room feature exports
-export {};
+export * from './useRoom';
+export * from './RoomHeader';

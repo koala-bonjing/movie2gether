@@ -96,3 +96,6 @@ export function Toast({ message, children, className = '', ...props }: ToastProp
     </div>
   );
 }
+
+export * from './OtpInput';
+

@@ -2,11 +2,10 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Player E2E Smoke Test', () => {
   test('loads home page, displays player placeholder and file picker', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?room=DEMO01');
 
     await expect(page.locator('h1')).toHaveText('Duet');
-    await expect(page.getByText('Local mode')).toBeVisible();
-    await expect(page.getByText('Phase 0 & 1: Ready to play')).toBeVisible();
+    await expect(page.getByText('Room:')).toBeVisible();
     await expect(page.getByText('Pick a video below to start.')).toBeVisible();
     await expect(page.getByText('Pick a video file')).toBeVisible();
     await expect(page.getByPlaceholder('…or paste a direct video link')).toBeVisible();
@@ -14,7 +13,7 @@ test.describe('Player E2E Smoke Test', () => {
   });
 
   test('validates URL input and mounts video element', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?room=DEMO01');
 
     const input = page.getByPlaceholder('…or paste a direct video link');
     await input.fill('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4');
