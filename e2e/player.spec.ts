@@ -16,12 +16,12 @@ test.describe('Player E2E Smoke Test', () => {
     await page.goto('/?room=DEMO01');
 
     const input = page.getByPlaceholder('…or paste a direct video link');
-    await input.fill('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4');
+    await input.fill('http://localhost:5173/sample.mp4');
     await page.getByRole('button', { name: 'Load', exact: true }).click();
 
     const video = page.locator('video');
     await expect(video).toBeAttached();
-    await expect(video).toHaveAttribute('src', /BigBuckBunny\.mp4/);
+    await expect(video).toHaveAttribute('src', /sample\.mp4/);
 
     // Play/Pause button and controls are available
     const playButton = page.getByRole('button', { name: 'Play', exact: true });

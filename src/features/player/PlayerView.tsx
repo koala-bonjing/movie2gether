@@ -9,13 +9,31 @@ type Meta = { duration: number; width: number; height: number };
 
 const mb = new Intl.NumberFormat(undefined, { style: 'unit', unit: 'megabyte', maximumFractionDigits: 1 });
 
-export function PlayerView() {
+export interface PlayerViewProps {
+  onVideoRef?: (el: HTMLVideoElement | null) => void;
+  onMediaInfo?: (info: MediaInfo | null) => void;
+  partnerBuffering?: boolean;
+}
+
+export function PlayerView({
+  onVideoRef,
+  onMediaInfo,
+  partnerBuffering = false,
+}: PlayerViewProps = {}) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [source, setSource] = useState<Source | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [info, setInfo] = useState<MediaInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onVideoRef?.(video);
+  }, [video, onVideoRef]);
+
+  useEffect(() => {
+    onMediaInfo?.(info);
+  }, [info, onMediaInfo]);
 
   // Revoke the previous object URL when the source changes, and the current one on unmount.
   useEffect(
@@ -105,7 +123,23 @@ export function PlayerView() {
                 </div>
               </div>
             ) : (
-              video && container && <PlayerControls video={video} container={container} />
+              <>
+                {video && container && <PlayerControls video={video} container={container} />}
+                {partnerBuffering && (
+                  <div
+                    role="status"
+                    className="absolute inset-0 z-30 grid place-items-center bg-black/60 pointer-events-none"
+                  >
+                    <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-sm text-text shadow-lg">
+                      <span className="relative flex size-2.5">
+                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-warn opacity-75" />
+                        <span className="relative inline-flex size-2.5 rounded-full bg-warn" />
+                      </span>
+                      <span>Waiting for partner…</span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         ) : (

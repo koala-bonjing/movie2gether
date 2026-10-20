@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { PlayerView } from '../features/player';
+import { PlayerView, type MediaInfo } from '../features/player';
 import { LobbyView } from '../features/lobby';
 import { useRoom, RoomHeader } from '../features/room';
+import { useSync, MediaMismatchDialog } from '../features/sync';
 import { Toast } from '../ui';
 
 export function App() {
@@ -68,6 +69,27 @@ function RoomSession({
   onLeave: () => void;
 }) {
   const room = useRoom(roomCode, { displayName });
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const [localMedia, setLocalMedia] = useState<MediaInfo | null>(null);
+  const [dismissMismatch, setDismissMismatch] = useState(false);
+
+  const sync = useSync(videoElement, room.channel, room.self?.userId ?? null);
+
+  const { broadcastMedia } = sync;
+  const selfUserId = room.self?.userId;
+
+  // Broadcast media fingerprint when local file is loaded
+  useEffect(() => {
+    if (localMedia && selfUserId) {
+      broadcastMedia({
+        from: selfUserId,
+        name: localMedia.name,
+        size: localMedia.size,
+        duration: localMedia.duration,
+        hash: localMedia.hash,
+      });
+    }
+  }, [localMedia, selfUserId, broadcastMedia]);
 
   const handleLeave = async () => {
     await room.leaveRoom();
@@ -81,6 +103,8 @@ function RoomSession({
         status={room.status}
         self={room.self}
         partner={room.partner}
+        drift={sync.drift}
+        onSyncNow={sync.syncNow}
         onLeave={handleLeave}
       />
 
@@ -97,7 +121,19 @@ function RoomSession({
         </div>
       )}
 
-      <PlayerView />
+      <PlayerView
+        onVideoRef={setVideoElement}
+        onMediaInfo={setLocalMedia}
+        partnerBuffering={sync.partnerBuffering}
+      />
+
+      {!dismissMismatch && sync.partnerMedia && localMedia && (
+        <MediaMismatchDialog
+          localMedia={localMedia}
+          partnerMedia={sync.partnerMedia}
+          onDismiss={() => setDismissMismatch(true)}
+        />
+      )}
 
       <div className="fixed bottom-4 right-4 z-50">
         <Toast message={`Room ${roomCode}: ${room.status === 'connected' ? 'Ready' : room.status}`} />

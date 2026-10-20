@@ -3,15 +3,26 @@ import { Button, StatusDot } from '../../ui';
 import type { RoomPeer, RoomConnectionStatus } from './useRoom';
 import { isUsingMock } from '../../lib/supabase';
 
+import { DriftIndicator } from '../sync/DriftIndicator';
+
 export interface RoomHeaderProps {
   roomCode: string;
   status: RoomConnectionStatus;
   self: RoomPeer | null;
   partner: RoomPeer | null;
+  drift?: number;
+  onSyncNow?: () => void;
   onLeave: () => void;
 }
 
-export function RoomHeader({ roomCode, status, partner, onLeave }: RoomHeaderProps) {
+export function RoomHeader({
+  roomCode,
+  status,
+  partner,
+  drift = 0,
+  onSyncNow,
+  onLeave,
+}: RoomHeaderProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -66,6 +77,10 @@ export function RoomHeader({ roomCode, status, partner, onLeave }: RoomHeaderPro
             </>
           )}
         </div>
+
+        {partner && onSyncNow && (
+          <DriftIndicator drift={drift} onSyncNow={onSyncNow} />
+        )}
 
         {isUsingMock && (
           <span className="hidden sm:inline-block rounded-full bg-accent-2/10 px-2 py-0.5 text-[11px] font-medium text-accent-2 border border-accent-2/20">
