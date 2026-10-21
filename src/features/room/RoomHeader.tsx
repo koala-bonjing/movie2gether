@@ -5,6 +5,7 @@ import { isUsingMock } from '../../lib/supabase';
 import type { VideoStats } from '../call/webrtc';
 
 import { DriftIndicator } from '../sync/DriftIndicator';
+import { ThemePicker } from '../theme';
 
 export interface RoomHeaderProps {
   roomCode: string;
@@ -112,6 +113,8 @@ export function RoomHeader({
         {stats && <QualityBadge stats={stats} />}
 
         {actions}
+
+        <ThemePicker />
 
         {isUsingMock && (
           <span className="hidden sm:inline-block rounded-full bg-accent-2/10 px-2 py-0.5 text-[11px] font-medium text-accent-2 border border-accent-2/20">

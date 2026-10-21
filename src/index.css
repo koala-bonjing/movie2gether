@@ -103,3 +103,15 @@ html {
   border-radius: 999px;
   background: var(--accent);
 }
+
+/* Subtitle / Caption cue styling (DESIGN.md) */
+video::cue {
+  font-size: var(--sub-font-size, 18px);
+  background: rgba(0, 0, 0, 0.75);
+  color: #ffffff;
+  border-radius: 4px;
+  line-height: 1.4;
+  padding: 2px 6px;
+  font-family: var(--font);
+}
+

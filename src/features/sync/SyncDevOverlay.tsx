@@ -7,7 +7,9 @@ export interface SyncDevOverlayProps {
 }
 
 export function SyncDevOverlay({ sync, roomCode }: SyncDevOverlayProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 768,
+  );
 
   // In non-dev environments, do not render unless explicitly in test/preview
   if (!import.meta.env.DEV && import.meta.env.MODE !== 'test') {

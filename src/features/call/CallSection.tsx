@@ -113,6 +113,7 @@ export function CallSection({
             <button
               type="button"
               onClick={() => setIsFloating(false)}
+              data-testid="dock-cam-btn"
               className="text-accent underline font-medium hover:opacity-80"
             >
               Dock here

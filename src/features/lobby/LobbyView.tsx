@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Button, Input, OtpInput } from '../../ui';
 import { generateRoomCode, getStoredDisplayName, isValidRoomCode, setStoredDisplayName } from './code';
+import { ThemePicker } from '../theme';
 
 export interface LobbyViewProps {
   onJoin: (roomCode: string, displayName: string, isCreator?: boolean) => void;
@@ -53,7 +54,10 @@ export function LobbyView({ onJoin, error, isConnecting = false }: LobbyViewProp
 
   return (
     <div className="flex w-full flex-col items-center justify-center py-6 sm:py-12">
-      <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 sm:p-8 shadow-xl">
+      <div className="relative w-full max-w-md rounded-lg border border-border bg-surface p-6 sm:p-8 shadow-xl">
+        <div className="absolute top-4 right-4">
+          <ThemePicker />
+        </div>
         <header className="mb-6 text-center">
           <h2 className="text-2xl font-bold tracking-tight text-text sm:text-3xl">Duet</h2>
           <p className="mt-2 text-sm text-muted">A private cinema for two. Watch in perfect sync.</p>

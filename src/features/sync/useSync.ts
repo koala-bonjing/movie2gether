@@ -12,8 +12,13 @@ import { ClockEstimator } from './clock';
 import { expectedPos, decideCorrection, calculateDrift, SYNC } from './correction';
 import { shouldAcceptRemoteSync, computeNextLocalSeq, isController } from './authority';
 
+export type PartnerAction =
+  | { type: 'play' }
+  | { type: 'pause' }
+  | { type: 'seek'; pos: number };
+
 export interface UseSyncOptions {
-  onPartnerAction?: (actionText: string) => void;
+  onPartnerAction?: (action: PartnerAction) => void;
 }
 
 export interface UseSyncReturn {
@@ -216,12 +221,30 @@ export function useSync(
       }
 
       // Fresh user action from remote peer
+      const prevMsg = lastSyncMsgRef.current;
+      const wasPlaying = prevMsg?.playing ?? false;
+      const offset = clockEstimatorRef.current.getOffset();
+      const expectedAtRemote = prevMsg ? expectedPos(prevMsg, offset, msg.at) : msg.pos;
+      const posDiff = Math.abs(msg.pos - expectedAtRemote);
+
+      let action: PartnerAction;
+      if (posDiff > 1.5) {
+        action = { type: 'seek', pos: msg.pos };
+      } else if (msg.playing && !wasPlaying) {
+        action = { type: 'play' };
+      } else if (!msg.playing && wasPlaying) {
+        action = { type: 'pause' };
+      } else if (msg.playing) {
+        action = { type: 'play' };
+      } else {
+        action = { type: 'pause' };
+      }
+
       lastSyncMsgRef.current = msg;
-      optionsRef.current?.onPartnerAction?.(msg.playing ? 'Partner played' : 'Partner paused');
+      optionsRef.current?.onPartnerAction?.(action);
       const v = videoRef.current;
       if (!v) return;
 
-      const offset = clockEstimatorRef.current.getOffset();
       const expected = expectedPos(msg, offset, Date.now());
 
       applyRemote(() => {

@@ -1,7 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, useRef, type ReactNode } from 'react';
 import { IconButton, QualityBadge } from '../../ui';
 import type { VideoStats } from '../call/webrtc';
 import { formatTime } from './media';
+import { SUBTITLE_FONT_SIZES, type SubtitleFontSize } from './subtitles';
 
 const SKIP_S = 5;
 const EVENTS = ['play', 'pause', 'timeupdate', 'durationchange', 'progress', 'volumechange', 'seeked'];
@@ -28,6 +29,15 @@ const icons = {
     </>,
   ),
   fullscreen: svg(<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" {...line} />),
+  subtitles: svg(
+    <path d="M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm-8 7H9.5v-.5h-2v3h2V13H11v1a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1Zm7 0h-1.5v-.5h-2v3h2V13H18v1a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1Z" />
+  ),
+  theater: svg(
+    <path d="M19 6H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Zm0 10H5V8h14v8Z" />
+  ),
+  sync: svg(
+    <path d="M12 4V1L8 5l4 4V6a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8Z" />
+  ),
 };
 
 function snapshot(v: HTMLVideoElement) {
@@ -72,17 +82,51 @@ const toggleFullscreen = (container: HTMLElement, video: HTMLVideoElement) => {
   }
 };
 
-type Props = {
+export type PlayerControlsProps = {
   video: HTMLVideoElement;
   container: HTMLElement;
   onToggleChat?: () => void;
   isStream?: boolean;
   stats?: VideoStats | null;
+  // Subtitles
+  hasSubtitles?: boolean;
+  subtitlesVisible?: boolean;
+  onToggleSubtitles?: () => void;
+  subtitleFontSize?: SubtitleFontSize;
+  onChangeSubtitleFontSize?: (size: SubtitleFontSize) => void;
+  onLoadSubtitleFile?: (file: File) => void;
+  onClearSubtitles?: () => void;
+  subtitleLabel?: string | null;
+  // Theater / Fullscreen
+  isTheater?: boolean;
+  onToggleTheater?: () => void;
+  // Sync now
+  onSyncNow?: () => void;
 };
 
-export function PlayerControls({ video, container, onToggleChat, isStream = false, stats }: Props) {
+export function PlayerControls({
+  video,
+  container,
+  onToggleChat,
+  isStream = false,
+  stats,
+  hasSubtitles = false,
+  subtitlesVisible = true,
+  onToggleSubtitles,
+  subtitleFontSize = 'md',
+  onChangeSubtitleFontSize,
+  onLoadSubtitleFile,
+  onClearSubtitles,
+  subtitleLabel,
+  isTheater = false,
+  onToggleTheater,
+  onSyncNow,
+}: PlayerControlsProps) {
   const [s, setS] = useState(() => snapshot(video));
   const [active, setActive] = useState(true);
+  const [showSubMenu, setShowSubMenu] = useState(false);
+  const subMenuRef = useRef<HTMLDivElement>(null);
+  const subFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const update = () => setS(snapshot(video));
@@ -92,7 +136,7 @@ export function PlayerControls({ video, container, onToggleChat, isStream = fals
 
   // Auto-hide controls 2.5s after pointer stops moving while video is playing (DESIGN.md: video first).
   useEffect(() => {
-    if (!s.playing) return;
+    if (!s.playing || showSubMenu) return;
     let timer: ReturnType<typeof setTimeout>;
     const show = () => {
       setActive(true);
@@ -109,9 +153,21 @@ export function PlayerControls({ video, container, onToggleChat, isStream = fals
       el.removeEventListener('pointermove', show);
       el.removeEventListener('pointerdown', show);
     };
-  }, [s.playing, container]);
+  }, [s.playing, showSubMenu, container]);
 
-  const visible = !s.playing || active;
+  // Close sub-menu on click outside
+  useEffect(() => {
+    if (!showSubMenu) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (subMenuRef.current && !subMenuRef.current.contains(e.target as Node)) {
+        setShowSubMenu(false);
+      }
+    };
+    window.addEventListener('pointerdown', handleOutside);
+    return () => window.removeEventListener('pointerdown', handleOutside);
+  }, [showSubMenu]);
+
+  const visible = !s.playing || active || showSubMenu;
 
   // Keyboard shortcuts (DESIGN.md): Space, ← → (5s), F, M, C (chat).
   useEffect(() => {
@@ -149,18 +205,44 @@ export function PlayerControls({ video, container, onToggleChat, isStream = fals
     }
   };
 
+  const handleSubButtonClick = () => {
+    if (!hasSubtitles) {
+      subFileInputRef.current?.click();
+    } else {
+      onToggleSubtitles?.();
+    }
+  };
+
   return (
     <>
+      {/* Hidden file input for subtitles */}
+      <input
+        ref={subFileInputRef}
+        type="file"
+        accept=".srt,.vtt,text/vtt"
+        className="sr-only"
+        data-testid="subtitles-file-input"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) {
+            onLoadSubtitleFile?.(file);
+            setShowSubMenu(false);
+          }
+        }}
+      />
+
       {/* Click anywhere on the picture to summon controls or play/pause. */}
       <div className="absolute inset-0" onClick={onBackdropClick} />
       <div
-        className={`absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 transition-opacity duration-200 ${
+        className={`absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-1 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-2 pt-8 pb-1 transition-opacity duration-200 ${
           visible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
         <IconButton label={s.playing ? 'Pause' : 'Play'} onClick={() => toggle(video)}>
           {s.playing ? icons.pause : icons.play}
         </IconButton>
+
         {isStream ? (
           <div className="flex flex-1 items-center gap-2 px-2">
             <span className="flex items-center gap-1.5 rounded-full bg-danger/20 border border-danger/40 px-2 py-0.5 text-[10px] font-bold tracking-wider text-danger uppercase">
@@ -193,9 +275,11 @@ export function PlayerControls({ video, container, onToggleChat, isStream = fals
             </div>
           </>
         )}
+
         <IconButton label={s.muted ? 'Unmute' : 'Mute'} onClick={() => toggleMute(video)}>
           {s.muted || s.volume === 0 ? icons.muted : icons.volume}
         </IconButton>
+
         <input
           type="range"
           aria-label="Volume"
@@ -206,6 +290,133 @@ export function PlayerControls({ video, container, onToggleChat, isStream = fals
           value={s.muted ? 0 : s.volume}
           onChange={(e) => setVolume(video, Number(e.target.value))}
         />
+
+        {/* Subtitles (CC) control and popover */}
+        {!isStream && (
+          <div ref={subMenuRef} className="relative inline-flex items-center">
+            <IconButton
+              label={
+                hasSubtitles
+                  ? subtitlesVisible
+                    ? 'Subtitles on (click to turn off)'
+                    : 'Subtitles off (click to turn on)'
+                  : 'Load subtitles'
+              }
+              onClick={handleSubButtonClick}
+              className={hasSubtitles && subtitlesVisible ? 'text-accent' : 'text-text'}
+              data-testid="subtitles-toggle-btn"
+            >
+              {icons.subtitles}
+            </IconButton>
+
+            <button
+              type="button"
+              onClick={() => setShowSubMenu((prev) => !prev)}
+              aria-label="Subtitle settings"
+              aria-expanded={showSubMenu}
+              className="grid size-6 place-items-center -ml-2 rounded-full text-muted hover:text-text hover:bg-white/10"
+              title="Subtitle settings"
+              data-testid="subtitles-settings-btn"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3">
+                <path d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" />
+              </svg>
+            </button>
+
+            {showSubMenu && (
+              <div
+                role="menu"
+                aria-label="Subtitle options"
+                className="absolute bottom-12 right-0 z-50 flex flex-col gap-2 rounded-xl border border-border bg-surface p-3 shadow-xl backdrop-blur-md min-w-[200px]"
+              >
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <span className="text-xs font-semibold text-text">Subtitles</span>
+                  {hasSubtitles && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleSubtitles?.()}
+                      className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${
+                        subtitlesVisible ? 'bg-accent/20 text-accent' : 'bg-surface-2 text-muted'
+                      }`}
+                    >
+                      {subtitlesVisible ? 'ON' : 'OFF'}
+                    </button>
+                  )}
+                </div>
+
+                {hasSubtitles && subtitleLabel && (
+                  <div className="text-[11px] text-muted truncate max-w-[190px]">
+                    Track: <span className="text-text font-mono">{subtitleLabel}</span>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase font-semibold text-muted tracking-wider">Font Size</span>
+                  <div className="flex items-center gap-1 rounded-sm border border-border bg-surface-2 p-1">
+                    {(['sm', 'md', 'lg'] as const).map((sz) => (
+                      <button
+                        key={sz}
+                        type="button"
+                        onClick={() => onChangeSubtitleFontSize?.(sz)}
+                        className={`flex-1 rounded-xs py-1 text-center text-xs transition ${
+                          subtitleFontSize === sz
+                            ? 'bg-accent font-bold text-bg shadow-xs'
+                            : 'text-muted hover:text-text'
+                        }`}
+                      >
+                        {SUBTITLE_FONT_SIZES[sz].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5 border-t border-border/60 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => subFileInputRef.current?.click()}
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-text hover:bg-surface-2 transition text-left"
+                  >
+                    <span>{hasSubtitles ? 'Replace .srt/.vtt file…' : 'Load .srt/.vtt file…'}</span>
+                  </button>
+
+                  {hasSubtitles && onClearSubtitles && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClearSubtitles();
+                        setShowSubMenu(false);
+                      }}
+                      className="flex items-center gap-2 rounded-md px-2 py-1 text-xs text-danger hover:bg-danger/10 transition text-left"
+                    >
+                      <span>Remove subtitles</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Sync Now button */}
+        {onSyncNow && !isStream && (
+          <IconButton label="Sync now with partner" onClick={onSyncNow} data-testid="controls-sync-now-btn">
+            {icons.sync}
+          </IconButton>
+        )}
+
+        {/* Theater mode toggle */}
+        {onToggleTheater && (
+          <IconButton
+            label={isTheater ? 'Exit theater mode' : 'Theater mode'}
+            onClick={onToggleTheater}
+            className={isTheater ? 'text-accent' : 'text-text'}
+            data-testid="theater-mode-btn"
+          >
+            {icons.theater}
+          </IconButton>
+        )}
+
+        {/* Fullscreen */}
         {isFullscreenSupported() && (
           <IconButton label="Fullscreen" onClick={() => toggleFullscreen(container, video)}>
             {icons.fullscreen}

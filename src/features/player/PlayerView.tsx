@@ -4,6 +4,13 @@ import type { VideoStats } from '../call/webrtc';
 import { FilePickerCard } from './FilePickerCard';
 import { PlayerControls } from './PlayerControls';
 import { fingerprint, formatTime, type MediaInfo } from './media';
+import {
+  parseSubtitleFile,
+  createSubtitleBlobUrl,
+  SUBTITLE_FONT_SIZES,
+  type SubtitleTrack,
+  type SubtitleFontSize,
+} from './subtitles';
 
 type Source = { src: string; label: string; file?: File };
 type Meta = { duration: number; width: number; height: number };
@@ -20,6 +27,9 @@ export interface PlayerViewProps {
   streamerName?: string;
   onStopScreenShare?: () => void;
   stats?: VideoStats | null;
+  isTheater?: boolean;
+  onToggleTheater?: () => void;
+  onSyncNow?: () => void;
 }
 
 export function PlayerView({
@@ -32,13 +42,22 @@ export function PlayerView({
   streamerName,
   onStopScreenShare,
   stats,
+  isTheater = false,
+  onToggleTheater,
+  onSyncNow,
 }: PlayerViewProps = {}) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  const videoElementRef = useRef<HTMLVideoElement | null>(null);
   const [source, setSource] = useState<Source | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [info, setInfo] = useState<MediaInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Subtitle states
+  const [subtitle, setSubtitle] = useState<SubtitleTrack | null>(null);
+  const [subtitlesVisible, setSubtitlesVisible] = useState(true);
+  const [subtitleFontSize, setSubtitleFontSize] = useState<SubtitleFontSize>('md');
 
   useEffect(() => {
     onVideoRef?.(video);
@@ -55,6 +74,27 @@ export function PlayerView({
     },
     [source],
   );
+
+  // Revoke subtitle blob URL when subtitle changes or on unmount
+  useEffect(() => {
+    return () => {
+      if (subtitle?.blobUrl) {
+        URL.revokeObjectURL(subtitle.blobUrl);
+      }
+    };
+  }, [subtitle]);
+
+  // Sync textTrack showing/hidden state on HTMLVideoElement
+  useEffect(() => {
+    const el = videoElementRef.current;
+    if (!el) return;
+    for (let i = 0; i < el.textTracks.length; i++) {
+      const track = el.textTracks[i];
+      if (track) {
+        track.mode = subtitlesVisible ? 'showing' : 'hidden';
+      }
+    }
+  }, [subtitlesVisible, subtitle]);
 
   useEffect(() => {
     if (!source?.file || !meta) return;
@@ -73,6 +113,27 @@ export function PlayerView({
     setInfo(null);
     setError(null);
     container?.focus(); // move focus to the player so keyboard shortcuts work right away
+  };
+
+  const handleLoadSubtitleFile = async (file: File) => {
+    try {
+      const parsed = await parseSubtitleFile(file);
+      const url = createSubtitleBlobUrl(parsed.vttContent);
+      setSubtitle((prev) => {
+        if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+        return { label: parsed.label, blobUrl: url };
+      });
+      setSubtitlesVisible(true);
+    } catch (e) {
+      console.warn('Failed to parse subtitle file:', e);
+    }
+  };
+
+  const handleClearSubtitles = () => {
+    if (subtitle?.blobUrl) {
+      URL.revokeObjectURL(subtitle.blobUrl);
+    }
+    setSubtitle(null);
   };
 
   return (
@@ -107,6 +168,8 @@ export function PlayerView({
               container={container}
               stats={stats}
               streamerName={streamerName}
+              isTheater={isTheater}
+              onToggleTheater={onToggleTheater}
             />
           ) : (
             <div className="grid size-full place-items-center p-4 text-center text-muted select-none">
@@ -119,10 +182,16 @@ export function PlayerView({
         ) : source ? (
           <>
             <video
-              ref={setVideo}
+              ref={(el) => {
+                videoElementRef.current = el;
+                setVideo(el);
+              }}
               src={source.src}
               playsInline
               className="size-full object-contain"
+              style={{
+                '--sub-font-size': SUBTITLE_FONT_SIZES[subtitleFontSize].px,
+              } as React.CSSProperties}
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget;
                 setMeta({ duration: v.duration, width: v.videoWidth, height: v.videoHeight });
@@ -143,7 +212,19 @@ export function PlayerView({
                   setError("That link didn't load. It needs to be a direct video URL this browser can open.");
                 }
               }}
-            />
+            >
+              {subtitle && subtitlesVisible && (
+                <track
+                  key={subtitle.blobUrl}
+                  kind="subtitles"
+                  label={subtitle.label}
+                  src={subtitle.blobUrl}
+                  srcLang="en"
+                  default
+                />
+              )}
+            </video>
+
             {error ? (
               <div role="alert" className="absolute inset-0 grid place-items-center overflow-auto bg-black/85 p-4">
                 <div className="flex max-w-lg flex-col gap-2 text-center">
@@ -171,7 +252,23 @@ export function PlayerView({
               </div>
             ) : (
               <>
-                {video && container && <PlayerControls video={video} container={container} />}
+                {video && container && (
+                  <PlayerControls
+                    video={video}
+                    container={container}
+                    hasSubtitles={!!subtitle}
+                    subtitlesVisible={subtitlesVisible}
+                    onToggleSubtitles={() => setSubtitlesVisible((prev) => !prev)}
+                    subtitleFontSize={subtitleFontSize}
+                    onChangeSubtitleFontSize={setSubtitleFontSize}
+                    onLoadSubtitleFile={handleLoadSubtitleFile}
+                    onClearSubtitles={handleClearSubtitles}
+                    subtitleLabel={subtitle?.label}
+                    isTheater={isTheater}
+                    onToggleTheater={onToggleTheater}
+                    onSyncNow={onSyncNow}
+                  />
+                )}
                 {partnerBuffering && (
                   <div
                     role="status"
@@ -215,17 +312,83 @@ export function PlayerView({
       ) : (
         <>
           {source && (
-            <p className="text-sm break-all text-muted">
-              <span className="text-text">{source.label}</span>
-              {meta && ` · ${meta.width}×${meta.height} · ${formatTime(meta.duration)}`}
-              {source.file && ` · ${mb.format(source.file.size / 1e6)}`}
-              {info && (
-                <>
-                  {' · '}
-                  <code title={info.hash}>{info.hash.slice(0, 12)}</code>
-                </>
-              )}
-            </p>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm break-all text-muted">
+                <span className="text-text">{source.label}</span>
+                {meta && ` · ${meta.width}×${meta.height} · ${formatTime(meta.duration)}`}
+                {source.file && ` · ${mb.format(source.file.size / 1e6)}`}
+                {info && (
+                  <>
+                    {' · '}
+                    <code title={info.hash}>{info.hash.slice(0, 12)}</code>
+                  </>
+                )}
+              </p>
+
+              {/* Subtitles status & controls bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/80 bg-surface px-3 py-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-text">Subtitles:</span>
+                  {subtitle ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 py-0.5 text-xs text-text">
+                      <span className="truncate max-w-[150px] font-mono">{subtitle.label}</span>
+                      <span className="text-[10px] text-accent">({SUBTITLE_FONT_SIZES[subtitleFontSize].label})</span>
+                      <button
+                        type="button"
+                        onClick={() => setSubtitlesVisible((v) => !v)}
+                        className="ml-1 text-[11px] underline hover:text-accent"
+                      >
+                        {subtitlesVisible ? 'Hide' : 'Show'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearSubtitles}
+                        className="text-xs text-muted hover:text-danger ml-1"
+                        title="Remove subtitles"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="text-muted">None loaded</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer text-xs font-medium text-accent hover:underline">
+                    <span>{subtitle ? 'Change file (.srt / .vtt)' : '+ Add subtitles (.srt / .vtt)'}</span>
+                    <input
+                      type="file"
+                      accept=".srt,.vtt,text/vtt"
+                      className="sr-only"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (file) void handleLoadSubtitleFile(file);
+                      }}
+                    />
+                  </label>
+                  {subtitle && (
+                    <div className="flex items-center gap-1 rounded-sm border border-border bg-surface-2 p-0.5 text-[10px]">
+                      {(['sm', 'md', 'lg'] as const).map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => setSubtitleFontSize(sz)}
+                          className={`rounded-xs px-1.5 py-0.5 transition ${
+                            subtitleFontSize === sz
+                              ? 'bg-accent font-bold text-bg shadow-xs'
+                              : 'text-muted hover:text-text'
+                          }`}
+                        >
+                          {sz.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
 
           <FilePickerCard
@@ -243,11 +406,15 @@ function StreamPlayerView({
   container,
   stats,
   streamerName,
+  isTheater = false,
+  onToggleTheater,
 }: {
   streamSource: MediaStream;
   container: HTMLElement | null;
   stats?: VideoStats | null;
   streamerName?: string;
+  isTheater?: boolean;
+  onToggleTheater?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
@@ -285,9 +452,10 @@ function StreamPlayerView({
           container={container}
           isStream={true}
           stats={stats}
+          isTheater={isTheater}
+          onToggleTheater={onToggleTheater}
         />
       )}
     </div>
   );
 }
-

@@ -1,189 +1,204 @@
-import { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { useState, useRef, useEffect, type PointerEvent } from 'react';
+import type { VideoStats } from './webrtc';
 import type { UseCallReturn } from './useCall';
-import { CamTile } from './CamTile';
 
 export interface FloatingCamBubbleProps {
-  call: UseCallReturn;
+  call?: UseCallReturn;
+  stream?: MediaStream | null;
   partnerName?: string;
   selfName?: string;
+  isCamOn?: boolean;
+  isMicOn?: boolean;
+  stats?: VideoStats | null;
+  onExpand?: () => void;
+  onClose?: () => void;
   onDock?: () => void;
-  className?: string;
+  containerRef?: React.RefObject<HTMLElement | null>;
 }
 
-export const FloatingCamBubble = memo(function FloatingCamBubble({
+export function FloatingCamBubble({
   call,
+  stream,
   partnerName = 'Partner',
-  selfName = 'You',
+  isCamOn,
+  isMicOn,
+  stats,
+  onExpand,
+  onClose,
   onDock,
-  className = '',
+  containerRef,
 }: FloatingCamBubbleProps) {
-  // Initial position: top-right area (e.g. 20px from right, 80px from top)
-  const [position, setPosition] = useState<{ x: number; y: number }>(() => {
-    if (typeof window !== 'undefined') {
-      return {
-        x: Math.max(16, window.innerWidth - 240),
-        y: 80,
-      };
+  const effectiveStream = stream !== undefined ? stream : (call?.remoteStream ?? null);
+  const effectiveCamOn = isCamOn !== undefined ? isCamOn : (call ? call.remoteCamOn : true);
+  const effectiveMicOn = isMicOn !== undefined ? isMicOn : (call ? call.remoteMicOn : true);
+  const effectiveStats = stats !== undefined ? stats : (call?.remoteStats ?? null);
+  const handleExpand = onExpand || onDock;
+  const handleClose = onClose || onDock;
+
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = effectiveStream;
+      if (effectiveStream) {
+        videoRef.current.play().catch(() => {});
+      }
     }
-    return { x: 20, y: 80 };
-  });
+  }, [effectiveStream]);
 
-  const [isMinimized, setIsMinimized] = useState(false);
-  const dragRef = useRef<{ isDragging: boolean; startX: number; startY: number; origX: number; origY: number }>({
-    isDragging: false,
-    startX: 0,
-    startY: 0,
-    origX: 0,
-    origY: 0,
-  });
+  const hasVideo = effectiveStream && effectiveStream.getVideoTracks().length > 0 && effectiveCamOn;
+  const initial = partnerName.trim().charAt(0).toUpperCase() || '?';
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const handlePointerDown = (e: PointerEvent) => {
+    // Only drag with primary pointer (not when clicking child buttons)
+    if ((e.target as HTMLElement).closest('button')) return;
+    const bubble = bubbleRef.current;
+    if (!bubble) return;
 
-  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Only drag with primary pointer / left click
-    if (e.button !== 0) return;
-    const target = e.target as HTMLElement;
-    // Don't drag if clicking buttons
-    if (target.closest('button')) return;
+    const rect = bubble.getBoundingClientRect();
+    const parentRect = containerRef?.current
+      ? containerRef.current.getBoundingClientRect()
+      : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+
+    const currentX = pos ? pos.x : rect.left - parentRect.left;
+    const currentY = pos ? pos.y : rect.top - parentRect.top;
 
     dragRef.current = {
-      isDragging: true,
       startX: e.clientX,
       startY: e.clientY,
-      origX: position.x,
-      origY: position.y,
+      initialX: currentX,
+      initialY: currentY,
     };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }, [position]);
+    setIsDragging(true);
+    bubble.setPointerCapture(e.pointerId);
+  };
 
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current.isDragging) return;
+  const handlePointerMove = (e: PointerEvent) => {
+    if (!dragRef.current || !bubbleRef.current) return;
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
 
-    const width = isMinimized ? 72 : 220;
-    const height = isMinimized ? 72 : 130;
-    const maxX = Math.max(0, (typeof window !== 'undefined' ? window.innerWidth : 800) - width - 16);
-    const maxY = Math.max(0, (typeof window !== 'undefined' ? window.innerHeight : 600) - height - 16);
+    const parentWidth = containerRef?.current?.clientWidth || window.innerWidth;
+    const parentHeight = containerRef?.current?.clientHeight || window.innerHeight;
+    const bubbleWidth = bubbleRef.current.offsetWidth || 130;
+    const bubbleHeight = bubbleRef.current.offsetHeight || 80;
 
-    const nextX = Math.min(Math.max(16, dragRef.current.origX + dx), maxX);
-    const nextY = Math.min(Math.max(16, dragRef.current.origY + dy), maxY);
+    const nextX = Math.max(8, Math.min(parentWidth - bubbleWidth - 8, dragRef.current.initialX + dx));
+    const nextY = Math.max(8, Math.min(parentHeight - bubbleHeight - 8, dragRef.current.initialY + dy));
 
-    setPosition({ x: nextX, y: nextY });
-  }, [isMinimized]);
+    setPos({ x: nextX, y: nextY });
+  };
 
-  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current.isDragging) {
-      dragRef.current.isDragging = false;
+  const handlePointerUp = (e: PointerEvent) => {
+    if (dragRef.current && bubbleRef.current) {
       try {
-        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        bubbleRef.current.releasePointerCapture(e.pointerId);
       } catch {
-        // ignore
+        // pointer capture already released
       }
     }
-  }, []);
-
-  // Window resize protection
-  useEffect(() => {
-    const handleResize = () => {
-      setPosition((prev) => {
-        const maxX = Math.max(16, window.innerWidth - 240);
-        const maxY = Math.max(16, window.innerHeight - 150);
-        return {
-          x: Math.min(prev.x, maxX),
-          y: Math.min(prev.y, maxY),
-        };
-      });
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const isInCall =
-    call.localStream !== null &&
-    (call.connectionState === 'connected' ||
-      call.connectionState === 'connecting' ||
-      call.connectionState === 'requesting-media');
-
-  if (!isInCall) return null;
+    dragRef.current = null;
+    setIsDragging(false);
+  };
 
   return (
     <div
-      ref={containerRef}
+      ref={bubbleRef}
+      role="region"
+      aria-label={`${partnerName}'s camera floating bubble`}
+      data-testid="floating-cam-bubble"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      data-testid="floating-cam-bubble"
-      style={{
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        touchAction: 'none',
-      }}
-      className={`fixed z-50 select-none transition-shadow duration-150 cursor-grab active:cursor-grabbing rounded-2xl shadow-2xl border border-border/80 bg-surface/95 backdrop-blur-md overflow-hidden ${
-        isMinimized ? 'size-18' : 'w-56 sm:w-64'
-      } ${className}`}
+      style={
+        pos
+          ? {
+              left: `${pos.x}px`,
+              top: `${pos.y}px`,
+              touchAction: 'none',
+            }
+          : {
+              right: '16px',
+              top: '16px',
+              touchAction: 'none',
+            }
+      }
+      className={`group absolute z-30 w-32 sm:w-36 aspect-video cursor-grab active:cursor-grabbing overflow-hidden rounded-xl border-2 border-accent/60 bg-surface-2 shadow-2xl select-none backdrop-blur-xs transition-shadow ${
+        isDragging ? 'shadow-accent/20 scale-102 ring-2 ring-accent' : 'hover:border-accent'
+      }`}
     >
-      {/* Header bar / drag handle */}
-      <div className="flex h-7 items-center justify-between px-2 bg-surface-2/90 border-b border-border/40 text-[10px] text-muted">
-        <span className="font-semibold text-text truncate max-w-[90px]">{partnerName}</span>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setIsMinimized((prev) => !prev)}
-            aria-label={isMinimized ? 'Expand camera' : 'Minimize camera'}
-            className="grid size-5 place-items-center rounded-sm hover:bg-white/10 hover:text-text transition"
-            title={isMinimized ? 'Expand' : 'Minimize'}
-          >
-            {isMinimized ? '□' : '–'}
-          </button>
-          {onDock && (
-            <button
-              type="button"
-              onClick={onDock}
-              aria-label="Dock camera into sidebar"
-              data-testid="dock-cam-btn"
-              className="grid size-5 place-items-center rounded-sm hover:bg-white/10 hover:text-text transition"
-              title="Dock in sidebar"
-            >
-              ⤢
-            </button>
-          )}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        className={`size-full object-cover pointer-events-none transition-opacity duration-200 ${
+          hasVideo ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+
+      {!hasVideo && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-surface-2 text-text pointer-events-none">
+          <div className="grid size-9 place-items-center rounded-full bg-accent/20 border border-accent/40 text-sm font-bold text-accent">
+            {initial}
+          </div>
+          <span className="text-[10px] text-muted">{effectiveCamOn ? 'Audio only' : 'Camera off'}</span>
         </div>
+      )}
+
+      {/* Overlay badges and action controls */}
+      <div className="absolute inset-x-1.5 bottom-1 flex items-center justify-between pointer-events-none">
+        <span className="truncate rounded-sm bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white max-w-[65%]">
+          {partnerName}
+        </span>
+        {!effectiveMicOn && (
+          <span className="grid size-4 place-items-center rounded-xs bg-danger/90 text-white" title="Muted">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-2.5">
+              <path d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06L3.28 2.22Z" />
+            </svg>
+          </span>
+        )}
       </div>
 
-      {/* Main Cam View */}
-      {!isMinimized ? (
-        <div className="relative aspect-video w-full bg-surface-2">
-          <CamTile
-            stream={call.remoteStream}
-            name={partnerName}
-            isLocal={false}
-            isCamOn={call.remoteCamOn}
-            isMicOn={call.remoteMicOn}
-            stats={call.remoteStats}
-            className="w-full h-full"
-          />
+      {/* Hover action controls */}
+      <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity bg-black/60 rounded-md p-0.5 backdrop-blur-xs">
+        {handleExpand && (
+          <button
+            type="button"
+            onClick={handleExpand}
+            aria-label="Expand call view"
+            title="Expand call"
+            className="grid size-6 place-items-center rounded-xs text-white hover:bg-white/20 transition active:scale-95"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
+              <path d="M13.28 7.78 17 4.06V7a.75.75 0 0 0 1.5 0V2.5A.5.5 0 0 0 18 2h-4.5a.75.75 0 0 0 0 1.5h2.94l-3.72 3.72a.75.75 0 0 0 1.06 1.06ZM6.72 12.22 3 15.94V13a.75.75 0 0 0-1.5 0v4.5a.5.5 0 0 0 .5.5H6.5a.75.75 0 0 0 0-1.5H3.56l3.72-3.72a.75.75 0 1 0-1.06-1.06Z" />
+            </svg>
+          </button>
+        )}
+        {handleClose && (
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label="Hide floating camera"
+            title="Hide"
+            className="grid size-6 place-items-center rounded-xs text-white hover:bg-white/20 transition active:scale-95"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
+              <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+            </svg>
+          </button>
+        )}
+      </div>
 
-          {/* Self Mini-PiP */}
-          <div className="absolute bottom-1 right-1 w-20 aspect-video z-10 shadow-md">
-            <CamTile
-              stream={call.localStream}
-              name={selfName}
-              isLocal={true}
-              isCamOn={call.isCamOn}
-              isMicOn={call.isMicOn}
-              className="w-full h-full border border-surface/90"
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="size-full grid place-items-center bg-surface-2 p-1">
-          <div className="grid size-9 place-items-center rounded-full bg-accent/20 border border-accent/40 text-xs font-bold text-accent">
-            {partnerName.trim().charAt(0).toUpperCase() || 'P'}
-          </div>
-        </div>
+      {effectiveStats && effectiveStats.width && effectiveStats.height && (
+        <span className="sr-only">
+          {effectiveStats.width}x{effectiveStats.height} {effectiveStats.fps ? `${effectiveStats.fps}fps` : ''}
+        </span>
       )}
     </div>
   );
-});
+}
