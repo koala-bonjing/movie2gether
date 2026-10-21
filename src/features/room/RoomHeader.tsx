@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Button, StatusDot, QualityBadge } from '../../ui';
+import { Button, StatusDot, QualityBadge, Avatar } from '../../ui';
 import type { RoomPeer, RoomConnectionStatus, PartnerConnectionStatus } from './useRoom';
 import { isUsingMock } from '../../lib/supabase';
 import type { VideoStats } from '../call/webrtc';
@@ -22,11 +22,18 @@ export interface RoomHeaderProps {
   stats?: VideoStats | null;
   isStreamMode?: boolean;
   actions?: ReactNode;
+  isCamOn?: boolean;
+  isMicOn?: boolean;
+  onToggleCam?: () => void;
+  onToggleMic?: () => void;
+  activeNavTab?: 'theater' | 'chat' | 'settings';
+  onNavTabChange?: (tab: 'theater' | 'chat' | 'settings') => void;
 }
 
 export function RoomHeader({
   roomCode,
   status,
+  self,
   partner,
   partnerStatus = 'waiting',
   drift = 0,
@@ -38,6 +45,12 @@ export function RoomHeader({
   stats,
   isStreamMode = false,
   actions,
+  isCamOn = true,
+  isMicOn = true,
+  onToggleCam,
+  onToggleMic,
+  activeNavTab = 'theater',
+  onNavTabChange,
 }: RoomHeaderProps) {
   const [copiedKind, setCopiedKind] = useState<'code' | 'link' | null>(null);
 
@@ -112,6 +125,49 @@ export function RoomHeader({
         </div>
       </div>
 
+      {/* Navigation tabs (Theater, Chat, Settings) */}
+      <nav aria-label="Room views" className="hidden lg:flex items-center gap-1 rounded-full border border-outline/40 bg-surface-container p-1 text-xs">
+        <button
+          type="button"
+          onClick={() => onNavTabChange?.('theater')}
+          className={`rounded-full px-3 py-1 font-semibold transition cursor-pointer ${
+            activeNavTab === 'theater'
+              ? 'bg-primary-container text-on-primary-container shadow-xs'
+              : 'text-muted hover:text-text'
+          }`}
+        >
+          Theater
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onNavTabChange?.('chat');
+            if (onToggleChat && !chatOpen) onToggleChat();
+          }}
+          className={`relative inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold transition cursor-pointer ${
+            activeNavTab === 'chat'
+              ? 'bg-primary-container text-on-primary-container shadow-xs'
+              : 'text-muted hover:text-text'
+          }`}
+        >
+          <span>Chat</span>
+          {unreadCount > 0 && (
+            <span className="size-2 rounded-full bg-primary" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => onNavTabChange?.('settings')}
+          className={`rounded-full px-3 py-1 font-semibold transition cursor-pointer ${
+            activeNavTab === 'settings'
+              ? 'bg-primary-container text-on-primary-container shadow-xs'
+              : 'text-muted hover:text-text'
+          }`}
+        >
+          Settings
+        </button>
+      </nav>
+
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {/* Partner Presence & Sync Status Pill */}
         <div className="flex items-center gap-2 rounded-full border border-outline/40 bg-surface-container px-3 py-1 text-xs shadow-xs">
@@ -181,9 +237,55 @@ export function RoomHeader({
 
         {stats && <QualityBadge stats={stats} />}
 
+        {/* Mic/Cam Quick Toggles */}
+        {onToggleMic && (
+          <button
+            type="button"
+            onClick={onToggleMic}
+            title={isMicOn ? 'Mute microphone' : 'Unmute microphone'}
+            aria-label={isMicOn ? 'Mute microphone' : 'Unmute microphone'}
+            className={`grid size-8 place-items-center rounded-full border transition active:scale-95 cursor-pointer ${
+              isMicOn
+                ? 'border-outline/40 bg-surface-container text-text hover:bg-surface-container-high'
+                : 'border-danger/40 bg-danger/20 text-danger'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
+              <path d="M7 4a3 3 0 0 1 6 0v6a3 3 0 1 1-6 0V4Z" />
+              <path d="M5.5 9.643a.75.75 0 0 0-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-1.5v-1.546A6.001 6.001 0 0 0 16 10v-.357a.75.75 0 0 0-1.5 0V10a4.5 4.5 0 0 1-9 0v-.357Z" />
+            </svg>
+          </button>
+        )}
+
+        {onToggleCam && (
+          <button
+            type="button"
+            onClick={onToggleCam}
+            title={isCamOn ? 'Turn off camera' : 'Turn on camera'}
+            aria-label={isCamOn ? 'Turn off camera' : 'Turn on camera'}
+            className={`grid size-8 place-items-center rounded-full border transition active:scale-95 cursor-pointer ${
+              isCamOn
+                ? 'border-outline/40 bg-surface-container text-text hover:bg-surface-container-high'
+                : 'border-danger/40 bg-danger/20 text-danger'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
+              <path d="M3.25 4A2.25 2.25 0 0 0 1 6.25v7.5A2.25 2.25 0 0 0 3.25 16h7.5A2.25 2.25 0 0 0 13 13.75v-7.5A2.25 2.25 0 0 0 10.75 4h-7.5ZM14.5 7.025v5.95l3.58 2.046a.75.75 0 0 0 1.17-.653V5.632a.75.75 0 0 0-1.17-.653L14.5 7.025Z" />
+            </svg>
+          </button>
+        )}
+
         {actions}
 
         <ThemePicker />
+
+        {/* Self Avatar */}
+        <Avatar
+          name={self?.name || 'You'}
+          size="sm"
+          status={status === 'connected' ? 'online' : 'muted'}
+          title={`Logged in as ${self?.name || 'You'}`}
+        />
 
         {onToggleChat && (
           <button

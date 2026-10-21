@@ -130,14 +130,15 @@ function RoomSession({
     (action: { type: 'play' } | { type: 'pause' } | { type: 'seek'; pos: number }) => {
       const partnerName = room.partner?.name || 'Partner';
       if (action.type === 'seek') {
-        showToast(`${partnerName} skipped to ${formatTime(action.pos)}`);
+        showToast(`${partnerName} skipped to ${formatTime(action.pos)} just now`);
       } else if (action.type === 'pause') {
-        showToast(`${partnerName} paused`);
+        const timePos = videoElement ? formatTime(videoElement.currentTime) : '';
+        showToast(timePos ? `${partnerName} paused at ${timePos} just now` : `${partnerName} paused just now`);
       } else if (action.type === 'play') {
-        showToast(`${partnerName} played`);
+        showToast(`${partnerName} resumed playback just now`);
       }
     },
-    [room.partner?.name, showToast],
+    [room.partner?.name, showToast, videoElement],
   );
 
   const sync = useSync(videoElement, room.channel, room.self?.userId ?? null, {
@@ -310,6 +311,20 @@ function RoomSession({
         unreadCount={chat.unreadCount}
         stats={call.remoteStats}
         isStreamMode={roomMode === 'stream'}
+        isCamOn={call.isCamOn}
+        isMicOn={call.isMicOn}
+        onToggleCam={call.toggleCam}
+        onToggleMic={call.toggleMic}
+        activeNavTab={isTheater ? 'theater' : 'chat'}
+        onNavTabChange={(tab) => {
+          if (tab === 'theater') {
+            setIsTheater(true);
+          } else if (tab === 'chat') {
+            setIsTheater(false);
+            if (!chat.isOpen) chat.setIsOpen(true);
+            setMobileTab('chat');
+          }
+        }}
       />
 
       {room.error && (
@@ -361,6 +376,7 @@ function RoomSession({
                 : room.partner?.name ?? 'Partner'
             }
             onStopScreenShare={call.stopScreenShare}
+            onShareScreen={call.isScreenShareAvailable ? call.toggleScreenShare : undefined}
             stats={call.remoteStats}
             isTheater={isTheater}
             onToggleTheater={() => setIsTheater((prev) => !prev)}
@@ -368,6 +384,7 @@ function RoomSession({
             roomCode={roomCode}
             onReaction={(emoji) => void chat.sendMessage(emoji)}
             lastReaction={lastReaction}
+            actionToasts={toasts}
           />
 
           {showBubble && (
@@ -392,6 +409,10 @@ function RoomSession({
               localMedia={localMedia}
               partnerMedia={sync.partnerMedia}
               onDismiss={() => setDismissedHash(sync.partnerMedia?.hash ?? null)}
+              onChangeFile={() => {
+                setLocalMedia(null);
+                setDismissedHash(null);
+              }}
             />
           )}
 
@@ -525,11 +546,8 @@ function RoomSession({
       </div>
 
       {/* Companion Synchronicity Status Strip & Footer */}
-      <footer
-        className="hidden lg:flex flex-col gap-3 border-t border-outline/30 pt-3.5 text-xs text-muted"
-        data-testid="desktop-status-strip"
-      >
-        <div className="flex items-center justify-between">
+      <footer className="flex flex-col gap-3 border-t border-outline/30 pt-3.5 text-xs text-muted">
+        <div className="hidden lg:flex items-center justify-between" data-testid="desktop-status-strip">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
               <span className="font-semibold text-text">Sync:</span>

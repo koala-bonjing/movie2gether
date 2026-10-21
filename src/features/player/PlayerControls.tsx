@@ -119,6 +119,9 @@ export type PlayerControlsProps = {
   onToggleTheater?: () => void;
   // Sync now
   onSyncNow?: () => void;
+  // Screen share
+  onShareScreen?: () => void;
+  isScreenSharing?: boolean;
 };
 
 export function PlayerControls({
@@ -138,9 +141,12 @@ export function PlayerControls({
   isTheater = false,
   onToggleTheater,
   onSyncNow,
+  onShareScreen,
+  isScreenSharing = false,
 }: PlayerControlsProps) {
   const [s, setS] = useState(() => snapshot(video));
   const [active, setActive] = useState(true);
+  const [isSpinning, setIsSpinning] = useState(false);
   const [showSubMenu, setShowSubMenu] = useState(false);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPos, setHoverPos] = useState<number>(0);
@@ -458,10 +464,35 @@ export function PlayerControls({
           </div>
         )}
 
-        {/* Sync Now button */}
+        {/* Share Screen button */}
+        {onShareScreen && (
+          <IconButton
+            label={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+            onClick={onShareScreen}
+            className={isScreenSharing ? 'text-primary' : 'text-text'}
+            data-testid="controls-share-screen-btn"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm4 15h8v-1.5H8V20Z" />
+            </svg>
+          </IconButton>
+        )}
+
+        {/* Sync Now button with spin icon */}
         {onSyncNow && !isStream && (
-          <IconButton label="Sync now with partner" onClick={onSyncNow} data-testid="controls-sync-now-btn">
-            {icons.sync}
+          <IconButton
+            label="Sync now with partner"
+            onClick={() => {
+              setIsSpinning(true);
+              onSyncNow();
+              setTimeout(() => setIsSpinning(false), 700);
+            }}
+            data-testid="controls-sync-now-btn"
+            className="group"
+          >
+            <span className={`inline-flex transition-transform duration-700 ${isSpinning ? 'rotate-360 animate-spin' : 'group-hover:rotate-180'}`}>
+              {icons.sync}
+            </span>
           </IconButton>
         )}
 

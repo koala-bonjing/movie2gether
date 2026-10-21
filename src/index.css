@@ -69,6 +69,10 @@
   --color-outline: var(--outline);
   --color-border: var(--border);
   --color-text: var(--text);
+  --color-on-surface: var(--text-on-surface);
+  --color-text-on-surface: var(--text-on-surface);
+  --color-on-surface-variant: var(--text-on-surface-variant);
+  --color-text-on-surface-variant: var(--text-on-surface-variant);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
   --color-accent-2: var(--accent-2);

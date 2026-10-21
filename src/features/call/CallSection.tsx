@@ -18,6 +18,7 @@ export function CallSection({
   className = '',
 }: CallSectionProps) {
   const [isFloating, setIsFloating] = useState(false);
+  const [callVolume, setCallVolume] = useState(1);
 
   const isInCall =
     call.localStream !== null &&
@@ -70,6 +71,8 @@ export function CallSection({
             isScreenSharing={call.isScreenSharing}
             isScreenShareAvailable={call.isScreenShareAvailable}
             onToggleScreenShare={call.toggleScreenShare}
+            outputVolume={callVolume}
+            onOutputVolumeChange={setCallVolume}
           />
         </div>
 
@@ -108,6 +111,7 @@ export function CallSection({
               isCamOn={call.remoteCamOn}
               isMicOn={call.remoteMicOn}
               stats={call.remoteStats}
+              volume={callVolume}
               className="w-full h-full border-0"
             />
 

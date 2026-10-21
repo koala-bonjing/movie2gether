@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { CallConnectionState } from './useCall';
 
 export interface CallControlsProps {
@@ -18,6 +19,8 @@ export interface CallControlsProps {
   isScreenSharing?: boolean;
   isScreenShareAvailable?: boolean;
   onToggleScreenShare?: () => void;
+  outputVolume?: number;
+  onOutputVolumeChange?: (vol: number) => void;
 }
 
 export function CallControls({
@@ -38,7 +41,11 @@ export function CallControls({
   isScreenSharing = false,
   isScreenShareAvailable = false,
   onToggleScreenShare,
+  outputVolume,
+  onOutputVolumeChange,
 }: CallControlsProps) {
+  const [localVol, setLocalVol] = useState(1);
+  const vol = outputVolume !== undefined ? outputVolume : localVol;
   const handleToggleCam = onToggleCam || toggleCam;
   const handleToggleMic = onToggleMic || toggleMic;
 
@@ -254,6 +261,47 @@ export function CallControls({
           </svg>
         </button>
       )}
+
+      {/* Output volume control for remote call audio */}
+      <div className="relative hidden sm:flex items-center group/vol">
+        <button
+          type="button"
+          onClick={() => {
+            const next = vol === 0 ? 1 : 0;
+            setLocalVol(next);
+            onOutputVolumeChange?.(next);
+          }}
+          aria-label={vol === 0 ? 'Unmute partner audio' : 'Mute partner audio'}
+          title="Output volume"
+          className="grid size-9 place-items-center rounded-full text-text hover:bg-white/10 transition active:scale-95 cursor-pointer"
+        >
+          {vol === 0 ? (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4 text-warn">
+              <path d="M3 9v6h4l5 5V4L7 9z" />
+              <path d="m16 9 3 3m0-3-3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+              <path d="M3 9v6h4l5 5V4L7 9z" />
+              <path d="M14.5 8.5a4 4 0 0 1 0 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+            </svg>
+          )}
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={vol}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            setLocalVol(next);
+            onOutputVolumeChange?.(next);
+          }}
+          aria-label="Output volume"
+          className="w-14 accent-primary h-1 bg-surface-container-highest rounded-full cursor-pointer"
+        />
+      </div>
 
       {/* End call button */}
       <button

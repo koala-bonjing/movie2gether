@@ -9,6 +9,7 @@ export interface CamTileProps {
   isMicOn?: boolean;
   stats?: VideoStats | null;
   className?: string;
+  volume?: number;
 }
 
 export const CamTile = memo(function CamTile({
@@ -19,6 +20,7 @@ export const CamTile = memo(function CamTile({
   isMicOn = true,
   stats,
   className = '',
+  volume,
 }: CamTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -32,6 +34,12 @@ export const CamTile = memo(function CamTile({
       }
     }
   }, [stream]);
+
+  useEffect(() => {
+    if (videoRef.current && !isLocal && volume !== undefined) {
+      videoRef.current.volume = Math.max(0, Math.min(1, volume));
+    }
+  }, [volume, isLocal]);
 
   const hasVideoTrack = stream && stream.getVideoTracks().length > 0 && isCamOn;
   const initial = name.trim().charAt(0).toUpperCase() || '?';

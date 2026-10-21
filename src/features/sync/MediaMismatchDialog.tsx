@@ -6,12 +6,14 @@ export interface MediaMismatchDialogProps {
   localMedia: MediaInfo | null;
   partnerMedia: MediaMsg | null;
   onDismiss: () => void;
+  onChangeFile?: () => void;
 }
 
 export function MediaMismatchDialog({
   localMedia,
   partnerMedia,
   onDismiss,
+  onChangeFile,
 }: MediaMismatchDialogProps) {
   if (!localMedia || !partnerMedia) return null;
 
@@ -99,10 +101,17 @@ export function MediaMismatchDialog({
 
         {/* Actions */}
         <div className="mt-6 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5">
-          <Button variant="secondary" onClick={onDismiss} className="w-full sm:w-auto text-xs font-semibold">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              if (onChangeFile) onChangeFile();
+              else onDismiss();
+            }}
+            className="w-full sm:w-auto text-xs font-semibold cursor-pointer"
+          >
             Choose Different File
           </Button>
-          <Button variant="primary" onClick={onDismiss} className="w-full sm:w-auto text-xs font-semibold shadow-md">
+          <Button variant="primary" onClick={onDismiss} className="w-full sm:w-auto text-xs font-semibold shadow-md cursor-pointer">
             Keep Playing Anyway
           </Button>
         </div>

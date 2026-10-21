@@ -34,6 +34,8 @@ export interface PlayerViewProps {
   roomCode?: string;
   onReaction?: (emoji: string) => void;
   lastReaction?: { from: string; emoji: string; time: string } | null;
+  actionToasts?: Array<{ id: string; message: string }>;
+  onShareScreen?: () => void;
 }
 
 export function PlayerView({
@@ -52,6 +54,8 @@ export function PlayerView({
   roomCode,
   onReaction,
   lastReaction,
+  actionToasts,
+  onShareScreen,
 }: PlayerViewProps = {}) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
@@ -184,6 +188,21 @@ export function PlayerView({
           )}
         </div>
 
+        {/* Floating Action Toasts inside 16:9 Video Canvas */}
+        {actionToasts && actionToasts.length > 0 && (
+          <div className="absolute top-3 right-3 z-30 flex flex-col gap-2 pointer-events-none" data-testid="player-canvas-toasts">
+            {actionToasts.map((toast) => (
+              <div
+                key={toast.id}
+                className="pointer-events-auto flex items-center gap-2 rounded-xl border border-white/15 bg-black/80 px-3.5 py-1.5 text-xs font-medium text-white shadow-xl backdrop-blur-md transition-all"
+              >
+                <span className="size-2 rounded-full bg-primary animate-pulse" />
+                <span>{toast.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {isStreamMode ? (
           isScreenSharing ? (
             <div className="flex flex-col items-center justify-center size-full gap-3 bg-surface-container p-6 text-center select-none" data-testid="screen-stream-local">
@@ -313,6 +332,8 @@ export function PlayerView({
                     isTheater={isTheater}
                     onToggleTheater={onToggleTheater}
                     onSyncNow={onSyncNow}
+                    onShareScreen={onShareScreen}
+                    isScreenSharing={isScreenSharing}
                   />
                 )}
                 {partnerBuffering && (

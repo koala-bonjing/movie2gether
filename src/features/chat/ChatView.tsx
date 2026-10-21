@@ -11,6 +11,7 @@ export interface ChatViewProps {
   onClose?: () => void;
   disabled?: boolean;
   className?: string;
+  isPartnerTyping?: boolean;
 }
 
 export function ChatView({
@@ -21,6 +22,7 @@ export function ChatView({
   onClose,
   disabled = false,
   className = '',
+  isPartnerTyping = false,
 }: ChatViewProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -39,12 +41,17 @@ export function ChatView({
     >
       {/* Chat header */}
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-outline/30 bg-surface-container px-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <span className="relative flex size-2 shrink-0">
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-tertiary opacity-75" />
             <span className="relative inline-flex size-2 rounded-full bg-tertiary" />
           </span>
           <span className="font-semibold text-sm text-text">Chat</span>
+          {partnerName && (
+            <span className="truncate text-xs text-muted max-w-[140px]" title={`Direct chat with ${partnerName}`}>
+              · Direct
+            </span>
+          )}
           {messages.length > 0 && (
             <span className="rounded-full bg-surface-container-highest px-2 py-0.5 text-[11px] font-mono-sm font-medium text-muted border border-outline/30">
               {messages.length}
@@ -109,6 +116,20 @@ export function ChatView({
               senderName={partnerName}
             />
           ))
+        )}
+
+        {isPartnerTyping && (
+          <div
+            className="flex items-center gap-2 rounded-2xl bg-surface-container-high px-3.5 py-1.5 text-xs text-muted w-fit animate-fade-in shadow-xs"
+            data-testid="chat-partner-typing"
+          >
+            <span className="font-medium text-text">{partnerName || 'Partner'} is typing</span>
+            <span className="flex items-center gap-1">
+              <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+              <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+              <span className="size-1.5 rounded-full bg-primary animate-bounce" />
+            </span>
+          </div>
         )}
       </div>
 

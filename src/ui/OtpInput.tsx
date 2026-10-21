@@ -1,5 +1,5 @@
 import { type ClipboardEvent, type KeyboardEvent, useRef } from 'react';
-import { sanitizeRoomCode } from '../features/lobby/code';
+import { applyOtpInput, sanitizeRoomCode } from '../features/lobby/code';
 
 export interface OtpInputProps {
   value: string;
@@ -21,19 +21,10 @@ export function OtpInput({
   const chars = Array.from({ length }, (_, i) => value[i] || '');
 
   const handleChange = (index: number, val: string) => {
-    const sanitized = sanitizeRoomCode(val);
-    if (!sanitized) return;
-
-    const nextChars = [...chars];
-    for (let j = 0; j < sanitized.length && index + j < length; j++) {
-      nextChars[index + j] = sanitized[j] || '';
-    }
-    const nextValue = nextChars.join('').slice(0, length);
-    onChange(nextValue);
-
-    const nextFocusIndex = Math.min(index + sanitized.length, length - 1);
-    if (nextFocusIndex > index) {
-      inputRefs.current[nextFocusIndex]?.focus();
+    const res = applyOtpInput(value, index, val, length);
+    onChange(res.nextCode);
+    if (res.nextIndex !== index) {
+      inputRefs.current[res.nextIndex]?.focus();
     }
   };
 
@@ -58,13 +49,18 @@ export function OtpInput({
     }
   };
 
-  const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = (index: number, e: ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     const pasted = e.clipboardData.getData('text');
     const sanitized = sanitizeRoomCode(pasted);
     if (sanitized) {
-      onChange(sanitized);
-      const focusIndex = Math.min(sanitized.length, length - 1);
+      const nextChars = [...chars];
+      const startIdx = sanitized.length >= length ? 0 : index;
+      for (let j = 0; j < sanitized.length && startIdx + j < length; j++) {
+        nextChars[startIdx + j] = sanitized[j] || '';
+      }
+      onChange(nextChars.join('').slice(0, length));
+      const focusIndex = Math.min(startIdx + sanitized.length, length - 1);
       inputRefs.current[focusIndex]?.focus();
     }
   };
@@ -86,9 +82,10 @@ export function OtpInput({
           disabled={disabled}
           autoFocus={autoFocus && index === 0}
           aria-label={`Digit ${index + 1} of ${length}`}
+          onFocus={(e) => e.target.select()}
           onChange={(e) => handleChange(index, e.target.value)}
           onKeyDown={(e) => handleKeyDown(index, e)}
-          onPaste={handlePaste}
+          onPaste={(e) => handlePaste(index, e)}
           className="w-12 h-[52px] bg-surface-container rounded-lg text-center font-mono-sm text-headline-md text-primary font-bold outline-none focus:ring-2 focus:ring-primary-container border border-outline/30 focus:border-transparent transition disabled:opacity-40 shadow-inner"
         />
       ))}
