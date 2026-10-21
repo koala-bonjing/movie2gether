@@ -40,10 +40,10 @@ export const ChatBubble = memo(function ChatBubble({
       </div>
 
       <div
-        className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed text-text shadow-xs break-words ${
+        className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed shadow-xs break-words ${
           isSelf
-            ? 'rounded-tr-xs bg-accent/15 border border-accent/30 text-text'
-            : 'rounded-tl-xs bg-surface-2 border border-border text-text'
+            ? 'rounded-tr-xs bg-primary-container text-on-primary-container font-medium'
+            : 'rounded-tl-xs bg-surface-container-high border border-outline/30 text-text'
         }`}
       >
         {tokens.map((token, idx) => {
@@ -54,7 +54,7 @@ export const ChatBubble = memo(function ChatBubble({
                 href={token.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent font-medium underline underline-offset-2 hover:opacity-80 break-all"
+                className={`${isSelf ? 'text-on-primary-container' : 'text-primary'} font-medium underline underline-offset-2 hover:opacity-80 break-all`}
               >
                 {token.text}
               </a>

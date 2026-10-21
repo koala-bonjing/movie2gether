@@ -39,46 +39,96 @@ export function RoomHeader({
   isStreamMode = false,
   actions,
 }: RoomHeaderProps) {
-  const [copied, setCopied] = useState(false);
+  const [copiedKind, setCopiedKind] = useState<'code' | 'link' | null>(null);
 
-  const handleCopy = () => {
-    navigator.clipboard?.writeText(roomCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard?.writeText(roomCode);
+      setCopiedKind('code');
+      setTimeout(() => setCopiedKind(null), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (typeof window !== 'undefined') {
+      try {
+        const url = `${window.location.origin}?room=${roomCode}`;
+        await navigator.clipboard?.writeText(url);
+        setCopiedKind('link');
+        setTimeout(() => setCopiedKind(null), 2000);
+      } catch {
+        // ignore
+      }
+    }
   };
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-4">
-      <div className="flex items-center gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-text">Duet</h1>
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <span>Room:</span>
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="inline-flex items-center gap-1.5 rounded-sm bg-surface-2 px-2 py-0.5 font-mono text-xs font-semibold text-text transition hover:border-accent hover:text-accent border border-border"
-              title="Click to copy room code"
-            >
-              <span>{roomCode}</span>
-              <span className="text-[10px] text-muted">{copied ? '✓ Copied' : 'Copy'}</span>
-            </button>
+    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-outline/30 pb-4">
+      <div className="flex items-center gap-3 sm:gap-4">
+        {/* Brand with Twin-Ring Cinema Motif */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-8 items-center justify-center rounded-full bg-gradient-to-tr from-[#e8a0bf] via-[#ffd8e6] to-[#f2c57c] p-[1.5px] shadow-sm">
+            <div className="flex size-full items-center justify-center rounded-full bg-surface-container-lowest text-primary">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="size-3.5 translate-x-0.5"
+                aria-hidden="true"
+              >
+                <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+              </svg>
+            </div>
           </div>
+          <h1 className="text-lg font-bold tracking-tight text-text">Duet</h1>
+        </div>
+
+        {/* Room Code Badge */}
+        <div className="flex items-center gap-1.5 rounded-full border border-outline/40 bg-surface-container-low px-3 py-1 text-xs shadow-xs">
+          <span className="text-[11px] font-medium text-muted">Room:</span>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1 font-mono-sm text-xs font-bold text-primary transition hover:underline"
+            title="Click to copy room code"
+            aria-label={`Copy room code ${roomCode}`}
+          >
+            <span>{roomCode}</span>
+            <span className="text-[10px] text-muted">
+              {copiedKind === 'code' ? '✓ Copied' : '⧉'}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className="text-[10px] text-muted hover:text-text border-l border-outline/40 pl-2 transition"
+            title="Copy invite link"
+            aria-label="Copy invite link"
+          >
+            {copiedKind === 'link' ? '✓ Link copied' : 'Share'}
+          </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        {/* Partner Presence & Sync Status Pill */}
+        <div className="flex items-center gap-2 rounded-full border border-outline/40 bg-surface-container px-3 py-1 text-xs shadow-xs">
           {status === 'connected' ? (
             partner ? (
-              <>
-                <StatusDot status="online" />
-                <span className="font-medium text-text">{partner.name}</span>
-              </>
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-tertiary opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-tertiary" />
+                </span>
+                <span className="font-semibold text-text">{partner.name}</span>
+                <span className="text-[11px] text-tertiary">· Connected</span>
+              </div>
             ) : partnerStatus === 'left' ? (
               <>
                 <StatusDot status="warn" />
-                <span className="text-warn">Partner left</span>
+                <span className="text-warn font-medium">Partner left</span>
               </>
             ) : (
               <>
@@ -89,7 +139,7 @@ export function RoomHeader({
           ) : status === 'reconnecting' ? (
             <>
               <StatusDot status="warn" pulse label="Reconnecting" />
-              <span className="text-warn">Reconnecting…</span>
+              <span className="text-warn font-medium">Reconnecting…</span>
             </>
           ) : status === 'connecting' ? (
             <>
@@ -99,7 +149,7 @@ export function RoomHeader({
           ) : (
             <>
               <StatusDot status="offline" label="Disconnected" />
-              <span className="text-danger">Disconnected</span>
+              <span className="text-error font-medium">Disconnected</span>
             </>
           )}
         </div>
@@ -108,9 +158,23 @@ export function RoomHeader({
           <DriftIndicator drift={drift} onSyncNow={onSyncNow} />
         )}
 
+        {/* WebRTC P2P Direct Status Indicator */}
+        <span className="hidden md:flex items-center gap-1.5 rounded-full bg-surface-container-low border border-outline/30 px-2.5 py-1 text-[11px] font-medium text-muted">
+          <span className="size-1.5 rounded-full bg-tertiary" />
+          WebRTC P2P Direct
+        </span>
+
+        {/* Local sync mode chip */}
+        {isUsingMock && (
+          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-primary-container/15 px-2.5 py-1 text-[11px] font-medium text-primary border border-primary-container/30">
+            <span className="size-1.5 rounded-full bg-primary" />
+            Local sync mode
+          </span>
+        )}
+
         {isStreamMode && (
-          <span className="flex items-center gap-1.5 rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-semibold text-accent border border-accent/30">
-            <span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
+          <span className="flex items-center gap-1.5 rounded-full bg-primary-container/20 px-2.5 py-1 text-xs font-semibold text-primary border border-primary-container/40 shadow-xs">
+            <span className="size-1.5 rounded-full bg-primary motion-safe:animate-pulse" />
             Stream Mode
           </span>
         )}
@@ -121,21 +185,15 @@ export function RoomHeader({
 
         <ThemePicker />
 
-        {isUsingMock && (
-          <span className="hidden sm:inline-block rounded-full bg-accent-2/10 px-2 py-0.5 text-[11px] font-medium text-accent-2 border border-accent-2/20">
-            Local sync mode
-          </span>
-        )}
-
         {onToggleChat && (
           <button
             type="button"
             onClick={onToggleChat}
             aria-label={chatOpen ? 'Hide chat' : 'Show chat'}
-            className={`relative inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-medium transition ${
+            className={`relative inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition active:scale-95 cursor-pointer ${
               chatOpen
-                ? 'bg-accent/20 text-text border-accent/40'
-                : 'bg-surface-2 text-muted hover:text-text'
+                ? 'bg-primary-container/20 text-text border-primary-container/50 shadow-xs'
+                : 'bg-surface-container text-muted border-outline/40 hover:text-text'
             }`}
           >
             <svg
@@ -155,7 +213,7 @@ export function RoomHeader({
             {unreadCount > 0 && (
               <span
                 data-testid="chat-unread-badge"
-                className="rounded-full bg-accent px-1.5 py-0.2 text-[10px] font-bold text-bg leading-tight"
+                className="rounded-full bg-primary-container px-1.5 py-0.2 text-[10px] font-bold text-on-primary-container leading-tight"
               >
                 {unreadCount}
               </span>
@@ -163,7 +221,12 @@ export function RoomHeader({
           </button>
         )}
 
-        <Button variant="ghost" onClick={onLeave} className="h-8 px-3 text-xs text-muted hover:text-danger">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onLeave}
+          className="text-error hover:bg-error/15 border border-error/30 hover:border-error/50 font-medium"
+        >
           Leave
         </Button>
       </div>

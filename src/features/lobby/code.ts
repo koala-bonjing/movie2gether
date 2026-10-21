@@ -46,3 +46,38 @@ export function setStoredDisplayName(name: string): void {
     // ignore
   }
 }
+
+const STORAGE_KEY_RECENT_ROOM = 'duet:recent-room';
+
+export interface RecentRoom {
+  code: string;
+  name?: string;
+  at: number;
+}
+
+export function getRecentRoom(): RecentRoom | null {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY_RECENT_ROOM) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.code === 'string' && isValidRoomCode(parsed.code)) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function setRecentRoom(code: string, name?: string): void {
+  try {
+    if (typeof localStorage === 'undefined' || !isValidRoomCode(code)) return;
+    localStorage.setItem(
+      STORAGE_KEY_RECENT_ROOM,
+      JSON.stringify({ code: code.toUpperCase(), name: name?.trim() || '', at: Date.now() }),
+    );
+  } catch {
+    // ignore
+  }
+}
+

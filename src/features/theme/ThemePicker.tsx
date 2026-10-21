@@ -52,7 +52,7 @@ export function ThemePicker({ className = '' }: { className?: string }) {
         <div
           role="menu"
           aria-label="Accent themes"
-          className="absolute right-0 top-10 z-50 flex items-center gap-2 rounded-xl border border-border bg-surface p-2 shadow-xl backdrop-blur-md"
+          className="absolute right-0 top-10 z-50 flex items-center gap-2 rounded-xl border border-border bg-surface p-2 shadow-md"
         >
           {ACCENT_THEMES.map((theme) => {
             const isSelected = theme.id === currentThemeId;

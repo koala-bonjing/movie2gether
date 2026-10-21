@@ -89,6 +89,14 @@ export const CamTile = memo(function CamTile({
             </span>
           )}
 
+          {isMicOn && !isLocal && (
+            <div className="flex items-end gap-0.5 h-3 px-1.5 py-0.5 rounded bg-black/50 backdrop-blur-xs" title="Live audio active">
+              <span className="w-0.5 h-1.5 bg-tertiary rounded-full animate-pulse" />
+              <span className="w-0.5 h-3 bg-tertiary rounded-full animate-bounce" />
+              <span className="w-0.5 h-2 bg-tertiary rounded-full animate-pulse" />
+            </div>
+          )}
+
           {stats?.width && stats.height && (
             <span className="rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-mono text-muted backdrop-blur-xs">
               {stats.width}x{stats.height} {stats.fps ? `${stats.fps}fps` : ''}

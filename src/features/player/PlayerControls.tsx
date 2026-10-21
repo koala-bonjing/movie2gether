@@ -142,6 +142,8 @@ export function PlayerControls({
   const [s, setS] = useState(() => snapshot(video));
   const [active, setActive] = useState(true);
   const [showSubMenu, setShowSubMenu] = useState(false);
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [hoverPos, setHoverPos] = useState<number>(0);
   const subMenuRef = useRef<HTMLDivElement>(null);
   const subFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -252,12 +254,36 @@ export function PlayerControls({
       {/* Click anywhere on the picture to summon controls or play/pause. */}
       <div className="absolute inset-0" onClick={onBackdropClick} />
       <div
-        className={`absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-1 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-2 pt-8 pb-1 transition-opacity duration-200 ${
+        className={`absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-1.5 bg-gradient-to-t from-black/95 via-black/60 to-transparent px-3 pt-10 pb-2 transition-opacity duration-200 ${
           visible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
         <IconButton label={s.playing ? 'Pause' : 'Play'} onClick={() => toggle(video)}>
           {s.playing ? icons.pause : icons.play}
+        </IconButton>
+
+        <IconButton
+          label="Rewind 5 seconds"
+          data-testid="rewind-5s-btn"
+          onClick={() => seek(video, video.currentTime - SKIP_S)}
+          className="hidden sm:grid"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M12.5 3a9 9 0 1 0 9 9h-2a7 7 0 1 1-7-7v3l5-4-5-4v3Z" />
+            <text x="12" y="15" fontSize="7" fontWeight="bold" textAnchor="middle" fill="currentColor">5</text>
+          </svg>
+        </IconButton>
+
+        <IconButton
+          label="Forward 5 seconds"
+          data-testid="forward-5s-btn"
+          onClick={() => seek(video, video.currentTime + SKIP_S)}
+          className="hidden sm:grid"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M11.5 3a9 9 0 1 1-9 9h2a7 7 0 1 0 7-7v3l-5-4 5-4v3Z" />
+            <text x="12" y="15" fontSize="7" fontWeight="bold" textAnchor="middle" fill="currentColor">5</text>
+          </svg>
         </IconButton>
 
         {isStream ? (
@@ -270,13 +296,31 @@ export function PlayerControls({
           </div>
         ) : (
           <>
-            <span className="shrink-0 px-1 text-xs tabular-nums text-text">
+            <span className="shrink-0 px-1 font-mono text-xs tabular-nums text-text/90 font-medium">
               {formatTime(s.time)} / {formatTime(s.duration)}
             </span>
-            <div className="relative mx-2 min-w-0 flex-1">
-              <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-white/20">
+            <div
+              className="group/seek relative mx-2 min-w-0 flex-1"
+              onMouseMove={(e) => {
+                if (!s.duration) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                setHoverTime(frac * s.duration);
+                setHoverPos(frac * 100);
+              }}
+              onMouseLeave={() => setHoverTime(null)}
+            >
+              {hoverTime !== null && (
+                <div
+                  className="pointer-events-none absolute -top-8 -translate-x-1/2 rounded-md bg-surface-container-highest px-2 py-0.5 text-[10px] font-mono font-bold text-text shadow-lg border border-outline/40 z-20"
+                  style={{ left: `${hoverPos}%` }}
+                >
+                  {formatTime(hoverTime)}
+                </div>
+              )}
+              <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-white/20">
                 <div className="absolute inset-y-0 left-0 bg-white/30" style={{ width: pct(s.buffered) }} />
-                <div className="absolute inset-y-0 left-0 bg-accent" style={{ width: pct(s.time) }} />
+                <div className="absolute inset-y-0 left-0 bg-[#e8a0bf]" style={{ width: pct(s.time) }} />
               </div>
               <input
                 type="range"
@@ -331,11 +375,11 @@ export function PlayerControls({
               onClick={() => setShowSubMenu((prev) => !prev)}
               aria-label="Subtitle settings"
               aria-expanded={showSubMenu}
-              className="grid size-6 place-items-center -ml-2 rounded-full text-muted hover:text-text hover:bg-white/10"
+              className="grid size-8 place-items-center -ml-2 rounded-full text-muted hover:text-text hover:bg-white/10"
               title="Subtitle settings"
               data-testid="subtitles-settings-btn"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
                 <path d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" />
               </svg>
             </button>
@@ -344,7 +388,7 @@ export function PlayerControls({
               <div
                 role="menu"
                 aria-label="Subtitle options"
-                className="absolute bottom-12 right-0 z-50 flex flex-col gap-2 rounded-xl border border-border bg-surface p-3 shadow-xl backdrop-blur-md min-w-[200px]"
+                className="absolute bottom-12 right-0 z-50 flex flex-col gap-2 rounded-xl border border-border bg-surface p-3 shadow-md min-w-[200px]"
               >
                 <div className="flex items-center justify-between border-b border-border/60 pb-2">
                   <span className="text-xs font-semibold text-text">Subtitles</span>

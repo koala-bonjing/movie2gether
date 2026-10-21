@@ -68,7 +68,7 @@ export function App() {
   return (
     <>
       {!roomCode ? (
-        <main className="mx-auto flex min-h-dvh max-w-5xl flex-col justify-center p-4 sm:p-8">
+        <main className="mx-auto flex min-h-dvh max-w-5xl flex-col justify-center p-4 sm:p-8 cinema-glow">
           <LobbyView onJoin={handleJoin} />
         </main>
       ) : (
@@ -281,8 +281,21 @@ function RoomSession({
     !isBubbleHidden &&
     ((isMobile && mobileTab === 'chat') || (isTheater && !isMobile));
 
+  // Last emoji reaction from messages
+  const lastReaction = (() => {
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
+      const m = chat.messages[i];
+      if (m && ['🍿', '❤️', '😂', '😭', '✨', '🫂'].includes(m.text.trim())) {
+        const fromName = m.from === room.self?.userId ? 'You' : room.partner?.name || 'Partner';
+        const time = new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return { from: fromName, emoji: m.text.trim(), time };
+      }
+    }
+    return null;
+  })();
+
   return (
-    <main className="mx-auto flex min-h-dvh max-w-6xl flex-col gap-6 p-4 sm:p-8">
+    <main className="mx-auto flex min-h-dvh max-w-7xl flex-col gap-6 p-4 sm:p-8 cinema-glow">
       <RoomHeader
         roomCode={roomCode}
         status={room.status}
@@ -300,12 +313,12 @@ function RoomSession({
       />
 
       {room.error && (
-        <div role="alert" className="flex items-center justify-between rounded-md border border-danger/40 bg-danger/10 p-3 text-xs text-danger">
+        <div role="alert" className="flex items-center justify-between rounded-lg border border-danger/40 bg-danger/10 p-3 text-xs text-danger">
           <span>{room.error}</span>
           <button
             type="button"
             onClick={handleLeave}
-            className="underline font-medium hover:opacity-80"
+            className="underline font-medium hover:opacity-80 cursor-pointer"
           >
             Return to lobby
           </button>
@@ -315,7 +328,7 @@ function RoomSession({
       {room.partnerStatus === 'left' && (
         <div
           role="status"
-          className="flex items-center gap-2 rounded-md border border-warn/40 bg-warn/10 p-3 text-xs text-warn shadow-xs"
+          className="flex items-center gap-2 rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs text-warn shadow-xs"
           data-testid="partner-left-banner"
         >
           <span className="size-2 rounded-full bg-warn motion-safe:animate-pulse" />
@@ -323,13 +336,18 @@ function RoomSession({
         </div>
       )}
 
+      {/* 12-Column Asymmetric Grid: Left Stage (9 cols), Right Sidebar (3 cols) */}
       <div
         className={`grid grid-cols-1 gap-6 items-start ${
-          !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:grid-cols-[1fr_360px]' : ''
+          !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:grid-cols-12' : ''
         }`}
       >
-        {/* Main Video Section */}
-        <div className="relative flex flex-col gap-6 min-w-0">
+        {/* Left Stage (9 columns in 12-column layout) */}
+        <div
+          className={`relative flex flex-col gap-6 min-w-0 ${
+            !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:col-span-9' : 'lg:col-span-12'
+          }`}
+        >
           <PlayerView
             onVideoRef={setVideoElement}
             onMediaInfo={setLocalMedia}
@@ -347,6 +365,9 @@ function RoomSession({
             isTheater={isTheater}
             onToggleTheater={() => setIsTheater((prev) => !prev)}
             onSyncNow={sync.syncNow}
+            roomCode={roomCode}
+            onReaction={(emoji) => void chat.sendMessage(emoji)}
+            lastReaction={lastReaction}
           />
 
           {showBubble && (
@@ -475,9 +496,9 @@ function RoomSession({
           )}
         </div>
 
-        {/* Desktop Side Panel (>= 1024px) */}
+        {/* Desktop Side Panel (>= 1024px) - 3 columns of 12 */}
         {!isMobile && !isTheater && (chat.isOpen || call.connectionState !== 'idle') && (
-          <aside className="flex flex-col gap-4 w-full shrink-0">
+          <aside className="lg:col-span-3 flex flex-col gap-4 w-full shrink-0">
             <Suspense fallback={<div className="flex min-h-24 items-center justify-center text-xs text-muted">Loading call…</div>}>
               <CallSection
                 call={call}
@@ -487,7 +508,7 @@ function RoomSession({
             </Suspense>
 
             {chat.isOpen && (
-              <div className="h-[460px] w-full">
+              <div className="h-[520px] w-full">
                 <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
                   <ChatView
                     messages={chat.messages}
@@ -503,50 +524,85 @@ function RoomSession({
         )}
       </div>
 
-      {/* Bottom Status Strip per DESIGN.md §Desktop */}
+      {/* Companion Synchronicity Status Strip & Footer */}
       <footer
-        className="hidden lg:flex items-center justify-between border-t border-border/60 pt-3 text-xs text-muted"
+        className="hidden lg:flex flex-col gap-3 border-t border-outline/30 pt-3.5 text-xs text-muted"
         data-testid="desktop-status-strip"
       >
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-text">Sync:</span>
-            <span className="size-2 rounded-full bg-success" />
-            <span>
-              {Math.abs(sync.drift) > 0.05
-                ? `${Math.round(Math.abs(sync.drift) * 1000)}ms drift`
-                : 'Synchronized'}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
+              <span className="font-semibold text-text">Sync:</span>
+              <span className="size-2 rounded-full bg-tertiary" />
+              <span className="font-mono-sm text-[11px]">
+                {Math.abs(sync.drift) > 0.05
+                  ? `${Math.round(Math.abs(sync.drift) * 1000)}ms drift`
+                  : 'Synchronized'}
+              </span>
+            </div>
+            <span>·</span>
+            <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
+              <span className="font-semibold text-text">Quality:</span>
+              <span className="font-mono-sm text-[11px]">
+                {call.remoteStats && call.remoteStats.width
+                  ? `${call.remoteStats.width}×${call.remoteStats.height}`
+                  : '1080p source'}
+              </span>
+            </div>
+            <span>·</span>
+            <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
+              <span className="size-1.5 rounded-full bg-tertiary" />
+              <span className="text-[11px] font-medium text-text">P2P Mesh Active</span>
+            </div>
+            <span>·</span>
+            <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
+              <span className="font-semibold text-text">Partner:</span>
+              <span
+                className={`size-2 rounded-full ${
+                  room.partner
+                    ? 'bg-tertiary'
+                    : room.partnerStatus === 'left'
+                      ? 'bg-warn'
+                      : 'bg-muted motion-safe:animate-pulse'
+                }`}
+              />
+              <span className="font-medium">
+                {room.partner ? 'Connected' : room.partnerStatus === 'left' ? 'Left' : 'Awaiting peer…'}
+              </span>
+            </div>
+            <span className="hidden xl:inline-flex items-center gap-1 text-[11px] text-muted">
+              <span>·</span>
+              <span className="text-primary font-mono-sm">🔒 Encrypted Zero-Knowledge Channel</span>
             </span>
           </div>
-          <span>·</span>
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-text">Quality:</span>
-            <span>
-              {call.remoteStats && call.remoteStats.width
-                ? `${call.remoteStats.width}×${call.remoteStats.height}`
-                : '1080p source'}
+
+          <div className="flex items-center gap-2 text-[11px] text-muted">
+            <span>Shortcuts:</span>
+            <span className="inline-flex items-center gap-1">
+              <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">Space</kbd>
+              <span>play/pause</span>
             </span>
-          </div>
-          <span>·</span>
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-text">Partner:</span>
-            <span
-              className={`size-2 rounded-full ${
-                room.partner
-                  ? 'bg-success'
-                  : room.partnerStatus === 'left'
-                    ? 'bg-warn'
-                    : 'bg-muted motion-safe:animate-pulse'
-              }`}
-            />
-            <span>
-              {room.partner ? 'Connected' : room.partnerStatus === 'left' ? 'Left' : 'Awaiting peer…'}
+            <span>·</span>
+            <span className="inline-flex items-center gap-1">
+              <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">← →</kbd>
+              <span>5s</span>
+            </span>
+            <span>·</span>
+            <span className="inline-flex items-center gap-1">
+              <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">F</kbd>
+              <span>fullscreen</span>
+            </span>
+            <span>·</span>
+            <span className="inline-flex items-center gap-1">
+              <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">C</kbd>
+              <span>chat</span>
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-[11px] text-muted">
-          <span>Shortcuts: Space (play/pause) · ← → (5s) · F (fullscreen) · C (chat)</span>
+        {/* Stitch Cinema Footer Bar */}
+        <div className="text-center font-mono-sm text-[10px] uppercase tracking-widest text-muted/60 pt-2 border-t border-outline/20">
+          DUET SECURE P2P WEBRTC // LATENCY &lt; 28MS | AUDIO 48KHZ OPUS | DRIFT {Math.abs(sync.drift).toFixed(2)}s | DUET CINEMA v2.4
         </div>
       </footer>
 

@@ -31,6 +31,9 @@ export interface PlayerViewProps {
   isTheater?: boolean;
   onToggleTheater?: () => void;
   onSyncNow?: () => void;
+  roomCode?: string;
+  onReaction?: (emoji: string) => void;
+  lastReaction?: { from: string; emoji: string; time: string } | null;
 }
 
 export function PlayerView({
@@ -46,6 +49,9 @@ export function PlayerView({
   isTheater = false,
   onToggleTheater,
   onSyncNow,
+  roomCode,
+  onReaction,
+  lastReaction,
 }: PlayerViewProps = {}) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
@@ -153,15 +159,35 @@ export function PlayerView({
 
   return (
     <section className="flex flex-col gap-4">
+      {/* 16:9 Video Canvas Box with Ambient Gradients */}
       <div
         ref={setContainer}
         tabIndex={-1}
-        className="group relative aspect-video w-full overflow-hidden rounded-md bg-black outline-none"
+        className="group relative aspect-video w-full overflow-hidden rounded-2xl border border-outline/40 bg-black shadow-2xl outline-none"
       >
+        {/* Top/bottom ambient gradients */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/70 via-black/20 to-transparent z-10" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10" />
+
+        {/* Quality Badges */}
+        <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 pointer-events-none select-none">
+          <span className="rounded-full bg-black/60 border border-white/10 backdrop-blur-xs px-2.5 py-0.5 text-[10px] font-mono font-medium text-white/90">
+            {meta ? `${meta.height}p` : '1080p WebRip'}
+          </span>
+          <span className="rounded-full bg-black/60 border border-white/10 backdrop-blur-xs px-2 py-0.5 text-[10px] font-mono font-medium text-white/70">
+            H.264
+          </span>
+          {roomCode && (
+            <span className="rounded-full bg-black/60 border border-white/10 backdrop-blur-xs px-2.5 py-0.5 text-[10px] font-mono font-medium text-primary">
+              Room {roomCode}
+            </span>
+          )}
+        </div>
+
         {isStreamMode ? (
           isScreenSharing ? (
-            <div className="flex flex-col items-center justify-center size-full gap-3 bg-surface-2 p-6 text-center select-none" data-testid="screen-stream-local">
-              <div className="grid size-14 place-items-center rounded-full bg-accent/20 border border-accent/40 text-accent">
+            <div className="flex flex-col items-center justify-center size-full gap-3 bg-surface-container p-6 text-center select-none" data-testid="screen-stream-local">
+              <div className="grid size-14 place-items-center rounded-full bg-primary-container/20 border border-primary-container/40 text-primary">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-7" aria-hidden="true">
                   <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm4 15h8v-1.5H8V20Z" />
                 </svg>
@@ -191,7 +217,7 @@ export function PlayerView({
           ) : (
             <div className="grid size-full place-items-center p-4 text-center text-muted select-none">
               <div className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-accent motion-safe:animate-ping" />
+                <span className="size-2 rounded-full bg-primary motion-safe:animate-ping" />
                 <span>Connecting to screen stream…</span>
               </div>
             </div>
@@ -246,7 +272,7 @@ export function PlayerView({
             </video>
 
             {error ? (
-              <div role="alert" className="absolute inset-0 grid place-items-center overflow-auto bg-black/85 p-4">
+              <div role="alert" className="absolute inset-0 grid place-items-center overflow-auto bg-black/85 p-4 z-20">
                 <div className="flex max-w-lg flex-col gap-2 text-center">
                   <p className="text-lg font-medium">{error}</p>
                   {source.file && (
@@ -254,11 +280,11 @@ export function PlayerView({
                       <p className="text-sm text-muted">
                         MP4 with H.264 video and AAC audio plays everywhere. Make a copy with ffmpeg:
                       </p>
-                      <code className="rounded-sm bg-surface-2 p-2 text-left text-xs break-all">
+                      <code className="rounded-sm bg-surface-container-high p-2 text-left text-xs break-all">
                         ffmpeg -i input.mkv -c copy output.mp4
                       </code>
                       <p className="text-xs text-muted">Still failing (HEVC video or AC3/DTS audio)? Re-encode:</p>
-                      <code className="rounded-sm bg-surface-2 p-2 text-left text-xs break-all">
+                      <code className="rounded-sm bg-surface-container-high p-2 text-left text-xs break-all">
                         ffmpeg -i input.mkv -c:v libx264 -crf 18 -preset medium -c:a aac -b:a 192k output.mp4
                       </code>
                     </>
@@ -294,7 +320,7 @@ export function PlayerView({
                     role="status"
                     className="absolute inset-0 z-30 grid place-items-center bg-black/60 pointer-events-none"
                   >
-                    <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-sm text-text shadow-lg">
+                    <div className="flex items-center gap-2 rounded-full border border-outline/40 bg-surface-container px-4 py-2 text-sm text-text shadow-lg">
                       <span className="relative flex size-2.5">
                         <span className="absolute inline-flex size-full animate-ping rounded-full bg-warn opacity-75" />
                         <span className="relative inline-flex size-2.5 rounded-full bg-warn" />
@@ -313,17 +339,44 @@ export function PlayerView({
         )}
       </div>
 
+      {/* Inline Floating Emoji Reaction Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline/30 bg-surface-container-low px-4 py-2 text-xs shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-text select-none">Instant Reactions:</span>
+          <div className="flex items-center gap-1.5">
+            {['🍿', '❤️', '😂', '😭', '✨', '🫂'].map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => onReaction?.(emoji)}
+                className="grid size-8 place-items-center rounded-lg bg-surface-container hover:bg-surface-container-high text-base transition-transform hover:scale-125 active:scale-95 cursor-pointer shadow-xs"
+                aria-label={`React with ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+        {lastReaction && (
+          <div className="flex items-center gap-1.5 text-[11px] text-muted font-medium">
+            <span>{lastReaction.from} sent</span>
+            <span className="text-base">{lastReaction.emoji}</span>
+            <span className="text-muted/70">{lastReaction.time}</span>
+          </div>
+        )}
+      </div>
+
       {isStreamMode ? (
-        <div className="flex items-center justify-between rounded-md border border-accent/20 bg-accent/5 p-3 text-xs text-muted">
+        <div className="flex items-center justify-between rounded-md border border-primary-container/30 bg-primary-container/10 p-3 text-xs text-muted">
           <div className="flex items-center gap-2">
-            <span className="size-2 rounded-full bg-accent" />
+            <span className="size-2 rounded-full bg-primary" />
             <span>Room is in Stream Mode. Local video file sync is paused.</span>
           </div>
           {isScreenSharing && onStopScreenShare && (
             <button
               type="button"
               onClick={onStopScreenShare}
-              className="text-accent underline font-medium hover:opacity-80"
+              className="text-primary underline font-medium hover:opacity-80"
             >
               Stop Sharing
             </button>
@@ -332,38 +385,60 @@ export function PlayerView({
       ) : (
         <>
           {source && (
-            <div className="flex flex-col gap-2">
-              <p className="text-sm break-all text-muted">
-                <span className="text-text">{source.label}</span>
-                {meta && ` · ${meta.width}×${meta.height} · ${formatTime(meta.duration)}`}
-                {source.file && ` · ${mb.format(source.file.size / 1e6)}`}
-                {info && (
-                  <>
-                    {' · '}
-                    <code title={info.hash}>{info.hash.slice(0, 12)}</code>
-                  </>
-                )}
-              </p>
+            <div className="flex flex-col gap-2.5">
+              {/* Video Metadata Strip */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline/30 bg-surface-container px-3.5 py-2 text-xs shadow-xs">
+                <div className="flex items-center gap-2 truncate max-w-full sm:max-w-[55%]">
+                  <span className="grid size-6 place-items-center rounded-md bg-primary-container/20 text-primary font-bold text-[10px] shrink-0">
+                    ▶
+                  </span>
+                  <span className="font-semibold text-text truncate">{source.label}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-muted text-[11px] font-mono-sm">
+                  {meta && (
+                    <span className="rounded-md bg-surface-container-high px-2 py-0.5 text-text">
+                      {meta.width}×{meta.height} · {formatTime(meta.duration)}
+                    </span>
+                  )}
+                  {source.file && (
+                    <span className="rounded-md bg-surface-container-high px-2 py-0.5">
+                      {mb.format(source.file.size / 1e6)}
+                    </span>
+                  )}
+                  {info && (
+                    <code title={info.hash} className="rounded-md bg-surface-container-high px-2 py-0.5 text-primary">
+                      {info.hash.slice(0, 12)}
+                    </code>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSource(null)}
+                    className="rounded-md bg-surface-container-high px-2 py-0.5 text-[11px] font-sans font-medium text-primary hover:bg-surface-variant transition cursor-pointer"
+                  >
+                    Change file
+                  </button>
+                </div>
+              </div>
 
               {/* Subtitles status & controls bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/80 bg-surface px-3 py-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-outline/30 bg-surface-container px-3.5 py-2.5 text-xs shadow-xs">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-text">Subtitles:</span>
+                  <span className="font-semibold text-text">Subtitles:</span>
                   {subtitle ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 py-0.5 text-xs text-text">
-                      <span className="truncate max-w-[150px] font-mono">{subtitle.label}</span>
-                      <span className="text-[10px] text-accent">({SUBTITLE_FONT_SIZES[subtitleFontSize].label})</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline/40 bg-surface-container-low px-2.5 py-0.5 text-xs text-text shadow-xs">
+                      <span className="truncate max-w-[150px] font-mono-sm">{subtitle.label}</span>
+                      <span className="text-[10px] text-primary">({SUBTITLE_FONT_SIZES[subtitleFontSize].label})</span>
                       <button
                         type="button"
                         onClick={() => setSubtitlesVisible((v) => !v)}
-                        className="ml-1 text-[11px] underline hover:text-accent"
+                        className="ml-1 text-[11px] font-medium underline hover:text-primary"
                       >
                         {subtitlesVisible ? 'Hide' : 'Show'}
                       </button>
                       <button
                         type="button"
                         onClick={handleClearSubtitles}
-                        className="text-xs text-muted hover:text-danger ml-1"
+                        className="text-xs text-muted hover:text-error ml-1"
                         title="Remove subtitles"
                       >
                         ✕
@@ -375,7 +450,7 @@ export function PlayerView({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label className="cursor-pointer text-xs font-medium text-accent hover:underline">
+                  <label className="cursor-pointer text-xs font-semibold text-primary hover:underline">
                     <span>{subtitle ? 'Change file (.srt / .vtt)' : '+ Add subtitles (.srt / .vtt)'}</span>
                     <input
                       type="file"
@@ -389,15 +464,15 @@ export function PlayerView({
                     />
                   </label>
                   {subtitle && (
-                    <div className="flex items-center gap-1 rounded-sm border border-border bg-surface-2 p-0.5 text-[10px]">
+                    <div className="flex items-center gap-1 rounded-lg border border-outline/40 bg-surface-container-low p-0.5 text-[10px]">
                       {(['sm', 'md', 'lg'] as const).map((sz) => (
                         <button
                           key={sz}
                           type="button"
                           onClick={() => setSubtitleFontSize(sz)}
-                          className={`rounded-xs px-1.5 py-0.5 transition ${
+                          className={`rounded-md px-2 py-0.5 transition ${
                             subtitleFontSize === sz
-                              ? 'bg-accent font-bold text-bg shadow-xs'
+                              ? 'bg-primary-container font-bold text-on-primary-container shadow-xs'
                               : 'text-muted hover:text-text'
                           }`}
                         >
@@ -420,3 +495,4 @@ export function PlayerView({
     </section>
   );
 }
+

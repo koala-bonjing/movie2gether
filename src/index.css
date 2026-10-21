@@ -1,18 +1,35 @@
 @import 'tailwindcss';
 
-/* Tokens from DESIGN.md. Accent is user-themable: swap --accent at runtime. */
+/* Tokens from Stitch Nocturne Intimacy. Accent is user-themable: swap --accent at runtime. */
 :root {
-  --bg: #0f0d12;
-  --surface: #1a1720;
-  --surface-2: #241f2c;
+  --bg: #15121b;
+  --surface: #211e27;
+  --surface-2: #2c2832;
+  --surface-container-lowest: #100d15;
+  --surface-container-low: #1d1a23;
+  --surface-container: #211e27;
+  --surface-container-high: #2c2832;
+  --surface-container-highest: #37333d;
+  --surface-variant: #37333d;
+  --primary: #ffbed9;
+  --primary-container: #e8a0bf;
+  --on-primary-container: #6b344f;
+  --secondary: #ecc077;
+  --secondary-container: #624304;
+  --on-secondary-container: #ddb26b;
+  --tertiary: #8ae2b6;
+  --error: #ffb4ab;
+  --text-on-surface: #e7e0ed;
+  --text-on-surface-variant: #d5c2c7;
+  --outline: #514348;
   --border: #332c3d;
-  --text: #f4eff6;
-  --muted: #a79fb3;
+  --text: #e7e0ed;
+  --muted: #d5c2c7;
   --accent: #e8a0bf;
-  --accent-2: #f2c57c;
-  --success: #7bd3a8;
-  --warn: #f2c57c;
-  --danger: #f08a8a;
+  --accent-2: #ecc077;
+  --success: #8ae2b6;
+  --warn: #ecc077;
+  --danger: #ffb4ab;
 
   --radius-sm: 8px;
   --radius-md: 14px;
@@ -35,6 +52,21 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-surface-variant: var(--surface-variant);
+  --color-primary: var(--primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-secondary: var(--secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-secondary-container: var(--on-secondary-container);
+  --color-tertiary: var(--tertiary);
+  --color-error: var(--error);
+  --color-outline: var(--outline);
   --color-border: var(--border);
   --color-text: var(--text);
   --color-muted: var(--muted);
@@ -62,6 +94,19 @@
   --text-xl: 28px;
   --duration-fast: 120ms;
   --duration-normal: 200ms;
+}
+
+@utility font-headline-md {
+  font-family: var(--font);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+}
+
+@utility font-mono-sm {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
 }
 
 html {
@@ -95,6 +140,11 @@ html {
   height: 14px;
   border-radius: 999px;
   background: var(--accent);
+  box-shadow: 0 0 4px var(--accent);
+  transition: transform 120ms ease;
+}
+.range:hover::-webkit-slider-thumb {
+  transform: scale(1.2);
 }
 .range::-moz-range-thumb {
   width: 14px;
@@ -102,6 +152,11 @@ html {
   border: 0;
   border-radius: 999px;
   background: var(--accent);
+  box-shadow: 0 0 4px var(--accent);
+  transition: transform 120ms ease;
+}
+.range:hover::-moz-range-thumb {
+  transform: scale(1.2);
 }
 
 /* Subtitle / Caption cue styling (DESIGN.md) */
@@ -114,4 +169,30 @@ video::cue {
   padding: 2px 6px;
   font-family: var(--font);
 }
+
+/* Cinema ambient glow backdrop */
+.cinema-glow {
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%);
+}
+
+/* Standard and custom sleek scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
 

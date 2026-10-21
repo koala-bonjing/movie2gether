@@ -42,9 +42,21 @@ export function ChatInput({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex items-center gap-2 border-t border-border bg-surface p-2.5"
+      className="flex items-center gap-2 border-t border-outline/30 bg-surface-container p-2.5"
       aria-label="Send message form"
     >
+      <button
+        type="button"
+        onClick={() => {
+          setText((t) => (t ? `${t} ❤️` : '❤️'));
+          inputRef.current?.focus();
+        }}
+        aria-label="Add emoji"
+        className="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:text-text hover:bg-surface-container-high transition text-base"
+      >
+        😊
+      </button>
+
       <input
         ref={inputRef}
         type="text"
@@ -56,7 +68,7 @@ export function ChatInput({
         placeholder={placeholder}
         aria-label="Message"
         data-testid="chat-input"
-        className="min-h-11 flex-1 rounded-full border border-border bg-surface-2 px-4 text-sm text-text placeholder:text-muted focus:border-accent focus:outline-hidden transition disabled:opacity-50"
+        className="min-h-11 flex-1 rounded-full border border-outline/40 bg-surface-container-low px-4 text-sm text-text placeholder:text-muted focus:border-primary-container focus:outline-hidden transition disabled:opacity-50"
       />
 
       <button
@@ -64,7 +76,7 @@ export function ChatInput({
         disabled={!text.trim() || disabled || isSubmitting}
         aria-label="Send message"
         data-testid="chat-send-btn"
-        className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-bg transition hover:opacity-90 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+        className="grid size-11 shrink-0 place-items-center rounded-full bg-primary-container text-on-primary-container shadow-md transition hover:bg-primary active:scale-95 disabled:pointer-events-none disabled:opacity-30 cursor-pointer"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

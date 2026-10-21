@@ -22,14 +22,14 @@ export function SyncDevOverlay({ sync, roomCode }: SyncDevOverlayProps) {
   return (
     <div
       data-testid="sync-dev-overlay"
-      className="fixed bottom-4 left-4 z-40 max-w-xs rounded-md border border-border/80 bg-surface/95 p-3 font-mono text-[11px] text-text shadow-xl backdrop-blur-md"
+      className="fixed bottom-4 left-4 z-40 max-w-xs rounded-xl border border-outline/40 bg-surface-container-low/95 p-3.5 font-mono-sm text-[11px] text-text shadow-2xl backdrop-blur-md"
     >
-      <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-1.5 mb-2">
-        <span className="font-semibold text-accent uppercase tracking-wider text-[10px]">Sync Debug HUD</span>
+      <div className="flex items-center justify-between gap-3 border-b border-outline/30 pb-2 mb-2.5">
+        <span className="font-semibold text-primary uppercase tracking-wider text-[10px]">Sync Debug HUD</span>
         <button
           type="button"
           onClick={() => setCollapsed(!collapsed)}
-          className="text-muted hover:text-text px-1 text-[10px]"
+          className="text-muted hover:text-text px-1 text-[10px] cursor-pointer"
           title={collapsed ? 'Expand' : 'Collapse'}
         >
           {collapsed ? '▲' : '▼'}
@@ -37,14 +37,14 @@ export function SyncDevOverlay({ sync, roomCode }: SyncDevOverlayProps) {
       </div>
 
       {!collapsed && (
-        <div className="space-y-1 text-muted">
+        <div className="space-y-1.5 text-muted">
           <div className="flex justify-between gap-4">
             <span>Room Code:</span>
-            <span className="text-text font-bold">{roomCode}</span>
+            <span className="text-primary font-bold">{roomCode}</span>
           </div>
           <div className="flex justify-between gap-4">
             <span>Role:</span>
-            <span className={sync.isController ? 'text-accent font-semibold' : 'text-text'}>
+            <span className={sync.isController ? 'text-primary font-semibold' : 'text-text'}>
               {sync.isController ? 'Controller (Local)' : sync.controllerId ? 'Replica (Partner dictating)' : 'Unassigned'}
             </span>
           </div>
