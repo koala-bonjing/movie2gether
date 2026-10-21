@@ -419,12 +419,33 @@ export function useSync(
         syncNow();
       }
     };
+
+    const handleOnline = () => {
+      sendPing();
+      syncNow();
+      channel.send({
+        type: 'broadcast',
+        event: 'sync',
+        payload: {
+          seq: 0,
+          from: selfId,
+          playing: false,
+          pos: 0,
+          rate: 1,
+          at: Date.now(),
+          request: true,
+        },
+      }).catch(() => {});
+    };
+
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('online', handleOnline);
 
     return () => {
       clearInterval(burst);
       clearInterval(periodic);
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleOnline);
     };
   }, [channel, selfId, sendPing, syncNow]);
 

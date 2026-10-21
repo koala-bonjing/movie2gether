@@ -86,6 +86,11 @@ export function RoomHeader({
                 <span className="text-muted">Waiting for partner…</span>
               </>
             )
+          ) : status === 'reconnecting' ? (
+            <>
+              <StatusDot status="warn" pulse label="Reconnecting" />
+              <span className="text-warn">Reconnecting…</span>
+            </>
           ) : status === 'connecting' ? (
             <>
               <StatusDot status="muted" pulse label="Connecting" />

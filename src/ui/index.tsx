@@ -104,4 +104,5 @@ export function Toast({ message, children, className = '', ...props }: ToastProp
 export * from './OtpInput';
 export * from './QualityBadge';
 export * from './PwaInstallPrompt';
+export * from './ErrorBoundary';
 

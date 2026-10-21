@@ -8,6 +8,7 @@ import {
   type DuetChannel,
   type PresencePayload,
 } from '../../lib/supabase';
+import { computeBackoffDelay } from './reconnect';
 
 export interface RoomPeer {
   userId: string;
@@ -15,7 +16,7 @@ export interface RoomPeer {
   joinedAt: number;
 }
 
-export type RoomConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+export type RoomConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error' | 'reconnecting';
 export type PartnerConnectionStatus = 'waiting' | 'connected' | 'left';
 
 export interface UseRoomOptions {
@@ -79,7 +80,16 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
     }
   }, []);
 
+  const isLeavingRef = useRef(false);
+  const retryCountRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const leaveRoom = useCallback(async () => {
+    isLeavingRef.current = true;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     const code = roomCode;
     const uid = self?.userId;
     if (channel) {
@@ -107,16 +117,22 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
 
   useEffect(() => {
     isUnmountedRef.current = false;
-    let channel: DuetChannel | null = null;
+    isLeavingRef.current = false;
     let live = true;
+    let currentChannel: DuetChannel | null = null;
 
-    async function init() {
+    async function connect() {
+      if (!live || isLeavingRef.current) return;
       try {
-        setStatus('connecting');
+        if (retryCountRef.current > 0) {
+          setStatus('reconnecting');
+        } else {
+          setStatus('connecting');
+        }
         setError(null);
 
         const userId = await ensureAuth();
-        if (!live) return;
+        if (!live || isLeavingRef.current) return;
 
         setSelf({
           userId,
@@ -127,8 +143,8 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
         // If we are creating the room, ensure it is created in the database first
         if (options.isCreator) {
           const createRes = await createRoomInDb(roomCode, userId);
-          if (!live) return;
-          if (!createRes.success) {
+          if (!live || isLeavingRef.current) return;
+          if (!createRes.success && retryCountRef.current === 0) {
             setStatus('error');
             setError(createRes.error || 'Failed to create room.');
             return;
@@ -137,71 +153,120 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
 
         // Register in database and enforce max 2 members
         const joinResult = await joinRoomInDb(roomCode, userId, options.displayName);
-        if (!live) return;
+        if (!live || isLeavingRef.current) return;
         if (!joinResult.success) {
           setStatus('error');
           setError(joinResult.error || 'Failed to join room.');
           return;
         }
 
-        channel = supabase.channel(`room:${roomCode}`, {
+        if (currentChannel) {
+          try {
+            await currentChannel.unsubscribe();
+            await supabase.removeChannel(currentChannel);
+          } catch {
+            // ignore
+          }
+        }
+
+        currentChannel = supabase.channel(`room:${roomCode}`, {
           config: {
             broadcast: { self: false, ack: false },
             presence: { key: userId },
           },
         });
-        setChannel(channel);
+        setChannel(currentChannel);
 
-        channel.on('presence', { event: 'sync' }, () => {
-          if (!live || !channel) return;
-          updatePresence(channel, userId);
+        currentChannel.on('presence', { event: 'sync' }, () => {
+          if (!live || !currentChannel) return;
+          updatePresence(currentChannel, userId);
         });
 
-        channel.on('presence', { event: 'join' }, () => {
-          if (!live || !channel) return;
-          updatePresence(channel, userId);
+        currentChannel.on('presence', { event: 'join' }, () => {
+          if (!live || !currentChannel) return;
+          updatePresence(currentChannel, userId);
         });
 
-        channel.on('presence', { event: 'leave' }, () => {
-          if (!live || !channel) return;
-          updatePresence(channel, userId);
+        currentChannel.on('presence', { event: 'leave' }, () => {
+          if (!live || !currentChannel) return;
+          updatePresence(currentChannel, userId);
         });
 
-        channel.subscribe(async (subStatus, err) => {
-          if (!live) return;
+        currentChannel.subscribe(async (subStatus, err) => {
+          if (!live || isLeavingRef.current) return;
           if (subStatus === 'SUBSCRIBED') {
+            retryCountRef.current = 0;
             setStatus('connected');
-            await channel?.track({
+            setError(null);
+            await currentChannel?.track({
               userId,
               name: options.displayName,
               joinedAt: Date.now(),
             });
-            if (live && channel) {
-              updatePresence(channel, userId);
+            if (live && currentChannel) {
+              updatePresence(currentChannel, userId);
             }
-          } else if (subStatus === 'CHANNEL_ERROR' || subStatus === 'TIMED_OUT') {
-            setStatus('error');
-            setError(err?.message || `Channel connection ${subStatus.toLowerCase()}`);
-          } else if (subStatus === 'CLOSED') {
-            setStatus('disconnected');
+          } else if (subStatus === 'CHANNEL_ERROR' || subStatus === 'TIMED_OUT' || subStatus === 'CLOSED') {
+            if (isLeavingRef.current) {
+              setStatus('disconnected');
+              return;
+            }
+            const delay = computeBackoffDelay(retryCountRef.current);
+            retryCountRef.current += 1;
+            setStatus('reconnecting');
+            setError(err?.message || `Connection dropped (${subStatus.toLowerCase()}). Retrying in ${(delay / 1000).toFixed(1)}s…`);
+
+            if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+            reconnectTimerRef.current = setTimeout(() => {
+              if (live && !isLeavingRef.current) {
+                void connect();
+              }
+            }, delay);
           }
         });
       } catch (err) {
-        if (!live) return;
-        setStatus('error');
-        setError(err instanceof Error ? err.message : 'Failed to join room');
+        if (!live || isLeavingRef.current) return;
+        const delay = computeBackoffDelay(retryCountRef.current);
+        retryCountRef.current += 1;
+        setStatus('reconnecting');
+        setError(err instanceof Error ? err.message : 'Reconnecting...');
+        if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = setTimeout(() => {
+          if (live && !isLeavingRef.current) {
+            void connect();
+          }
+        }, delay);
       }
     }
 
-    init();
+    void connect();
+
+    const handleOnline = () => {
+      if (live && !isLeavingRef.current) {
+        if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+        retryCountRef.current = 0;
+        void connect();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline);
+    }
 
     return () => {
       live = false;
       isUnmountedRef.current = true;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleOnline);
+      }
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       setChannel(null);
-      if (channel) {
-        channel.unsubscribe().catch(() => {});
-        supabase.removeChannel(channel).catch(() => {});
+      if (currentChannel) {
+        currentChannel.unsubscribe().catch(() => {});
+        supabase.removeChannel(currentChannel).catch(() => {});
       }
     };
   }, [roomCode, options.displayName, options.isCreator, updatePresence]);

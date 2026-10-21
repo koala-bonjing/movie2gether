@@ -1,13 +1,23 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { PlayerView, type MediaInfo } from '../features/player';
 import { formatTime } from '../features/player/media';
 import { LobbyView } from '../features/lobby';
 import { useRoom, RoomHeader } from '../features/room';
 import { useSync, MediaMismatchDialog, SyncDevOverlay } from '../features/sync';
 import { safeParseRoomModeMsg } from '../features/sync/protocol';
-import { useChat, ChatView } from '../features/chat';
-import { useCall, CallSection, FloatingCamBubble } from '../features/call';
+import { useChat } from '../features/chat/useChat';
+import { useCall } from '../features/call/useCall';
 import { Toast, PwaInstallPrompt } from '../ui';
+
+const CallSection = lazy(() =>
+  import('../features/call/CallSection').then((m) => ({ default: m.CallSection })),
+);
+const FloatingCamBubble = lazy(() =>
+  import('../features/call/FloatingCamBubble').then((m) => ({ default: m.FloatingCamBubble })),
+);
+const ChatView = lazy(() =>
+  import('../features/chat/ChatView').then((m) => ({ default: m.ChatView })),
+);
 
 export function App() {
   const [roomCode, setRoomCode] = useState<string | null>(() => {
@@ -340,18 +350,20 @@ function RoomSession({
           />
 
           {showBubble && (
-            <FloatingCamBubble
-              stream={call.remoteStream}
-              partnerName={room.partner?.name ?? 'Partner'}
-              isCamOn={call.remoteCamOn}
-              isMicOn={call.remoteMicOn}
-              stats={call.remoteStats}
-              onExpand={() => {
-                setMobileTab('call');
-                setIsTheater(false);
-              }}
-              onClose={() => setIsBubbleHidden(true)}
-            />
+            <Suspense fallback={null}>
+              <FloatingCamBubble
+                stream={call.remoteStream}
+                partnerName={room.partner?.name ?? 'Partner'}
+                isCamOn={call.remoteCamOn}
+                isMicOn={call.remoteMicOn}
+                stats={call.remoteStats}
+                onExpand={() => {
+                  setMobileTab('call');
+                  setIsTheater(false);
+                }}
+                onClose={() => setIsBubbleHidden(true)}
+              />
+            </Suspense>
           )}
 
           {showMismatch && sync.partnerMedia && localMedia && (
@@ -433,12 +445,14 @@ function RoomSession({
                     aria-labelledby="tab-chat"
                     className="h-[420px] w-full"
                   >
-                    <ChatView
-                      messages={chat.messages}
-                      selfUserId={room.self?.userId ?? null}
-                      partnerName={room.partner?.name}
-                      onSendMessage={chat.sendMessage}
-                    />
+                    <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
+                      <ChatView
+                        messages={chat.messages}
+                        selfUserId={room.self?.userId ?? null}
+                        partnerName={room.partner?.name}
+                        onSendMessage={chat.sendMessage}
+                      />
+                    </Suspense>
                   </div>
                 ) : (
                   <div
@@ -447,11 +461,13 @@ function RoomSession({
                     aria-labelledby="tab-call"
                     className="w-full"
                   >
-                    <CallSection
-                      call={call}
-                      partnerName={room.partner?.name}
-                      selfName={room.self?.name}
-                    />
+                    <Suspense fallback={<div className="flex min-h-32 items-center justify-center text-xs text-muted">Loading call…</div>}>
+                      <CallSection
+                        call={call}
+                        partnerName={room.partner?.name}
+                        selfName={room.self?.name}
+                      />
+                    </Suspense>
                   </div>
                 )}
               </div>
@@ -462,21 +478,25 @@ function RoomSession({
         {/* Desktop Side Panel (>= 1024px) */}
         {!isMobile && !isTheater && (chat.isOpen || call.connectionState !== 'idle') && (
           <aside className="flex flex-col gap-4 w-full shrink-0">
-            <CallSection
-              call={call}
-              partnerName={room.partner?.name}
-              selfName={room.self?.name}
-            />
+            <Suspense fallback={<div className="flex min-h-24 items-center justify-center text-xs text-muted">Loading call…</div>}>
+              <CallSection
+                call={call}
+                partnerName={room.partner?.name}
+                selfName={room.self?.name}
+              />
+            </Suspense>
 
             {chat.isOpen && (
               <div className="h-[460px] w-full">
-                <ChatView
-                  messages={chat.messages}
-                  selfUserId={room.self?.userId ?? null}
-                  partnerName={room.partner?.name}
-                  onSendMessage={chat.sendMessage}
-                  onClose={() => chat.setIsOpen(false)}
-                />
+                <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
+                  <ChatView
+                    messages={chat.messages}
+                    selfUserId={room.self?.userId ?? null}
+                    partnerName={room.partner?.name}
+                    onSendMessage={chat.sendMessage}
+                    onClose={() => chat.setIsOpen(false)}
+                  />
+                </Suspense>
               </div>
             )}
           </aside>
