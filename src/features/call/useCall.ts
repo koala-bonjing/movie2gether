@@ -730,7 +730,7 @@ export function useCall({
     };
 
     channel.on('broadcast', { event: 'signal' }, handleSignal);
-  }, [channel, endCall, sendSignal]);
+  }, [channel, endCall, sendSignal, initPeerConnection]);
 
   // Automatic WebRTC re-negotiation when network comes back online
   useEffect(() => {
