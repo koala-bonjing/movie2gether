@@ -4,10 +4,10 @@ import { z } from 'zod';
 const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((v) => (v === '' ? undefined : v), schema.optional());
 
-// Clean and sanitize Supabase URL (strip any trailing /rest/v1.* or slashes)
+// Clean and sanitize Supabase URL (strip any trailing /(rest|auth)/v1.* or slashes)
 const cleanSupabaseUrlString = (val: unknown) => {
   if (typeof val !== 'string' || val.trim() === '') return undefined;
-  return val.trim().replace(/\/rest\/v1.*$/i, '').replace(/\/+$/, '');
+  return val.trim().replace(/\/(rest|auth)\/v1.*$/i, '').replace(/\/+$/, '');
 };
 
 const schema = z.object({

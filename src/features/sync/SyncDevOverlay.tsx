@@ -31,56 +31,59 @@ export function SyncDevOverlay({ sync, roomCode, isOpen, onToggle }: SyncDevOver
   return (
     <div
       data-testid="sync-dev-overlay"
-      className="fixed bottom-4 left-4 z-40 max-w-xs rounded-xl border border-outline/40 bg-surface-container-low/95 p-3.5 font-mono-sm text-[11px] text-text shadow-2xl backdrop-blur-md"
+      className="w-full rounded-xl border border-outline/30 bg-surface-container-low p-2.5 font-mono-sm text-[11px] text-text shadow-xs"
     >
-      <div className={`flex items-center justify-between gap-3 ${collapsed ? '' : 'border-b border-outline/30 pb-2 mb-2.5'}`}>
-        <span className="font-semibold text-primary uppercase tracking-wider text-[10px]">Sync Debug HUD</span>
+      <div className={`flex items-center justify-between gap-3 ${collapsed ? '' : 'border-b border-outline/20 pb-2 mb-2'}`}>
+        <div className="flex items-center gap-2">
+          <span className="size-2 rounded-full bg-primary motion-safe:animate-pulse" />
+          <span className="font-semibold text-primary uppercase tracking-wider text-[10px]">Sync Debug HUD</span>
+        </div>
         <button
           type="button"
           onClick={toggleCollapse}
           className="text-muted hover:text-text px-1 text-[10px] cursor-pointer"
           title={collapsed ? 'Expand' : 'Collapse'}
         >
-          {collapsed ? '▲' : '▼'}
+          {collapsed ? '▲ Expand' : '▼ Minimize'}
         </button>
       </div>
 
       {!collapsed && (
-        <div className="space-y-1.5 text-muted">
-          <div className="flex justify-between gap-4">
-            <span>Room Code:</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-muted">
+          <div>
+            <span className="block text-[10px] uppercase text-muted/80">Room Code:</span>
             <span className="text-primary font-bold">{roomCode}</span>
           </div>
-          <div className="flex justify-between gap-4">
-            <span>Role:</span>
+          <div>
+            <span className="block text-[10px] uppercase text-muted/80">Role:</span>
             <span className={sync.isController ? 'text-primary font-semibold' : 'text-text'}>
-              {sync.isController ? 'Controller (Local)' : sync.controllerId ? 'Replica (Partner dictating)' : 'Unassigned'}
+              {sync.isController ? 'Controller' : sync.controllerId ? 'Replica' : 'Unassigned'}
             </span>
           </div>
-          <div className="flex justify-between gap-4">
-            <span>Seq:</span>
+          <div>
+            <span className="block text-[10px] uppercase text-muted/80">Seq:</span>
             <span className="text-text">{sync.seq}</span>
           </div>
-          <div className="flex justify-between gap-4">
-            <span>Clock Offset:</span>
+          <div>
+            <span className="block text-[10px] uppercase text-muted/80">Offset:</span>
             <span className={Math.abs(offsetMs) > 100 ? 'text-warn' : 'text-text'}>
               {offsetMs >= 0 ? `+${offsetMs}` : offsetMs} ms
             </span>
           </div>
-          <div className="flex justify-between gap-4">
-            <span>RTT:</span>
+          <div>
+            <span className="block text-[10px] uppercase text-muted/80">RTT:</span>
             <span className="text-text">{Math.round(sync.rtt)} ms</span>
           </div>
-          <div className="flex justify-between gap-4">
-            <span>Current Drift:</span>
+          <div>
+            <span className="block text-[10px] uppercase text-muted/80">Drift:</span>
             <span className={Math.abs(sync.drift) > 0.25 ? 'text-warn font-semibold' : 'text-text'}>
               {driftMs >= 0 ? `+${driftMs}` : driftMs} ms
             </span>
           </div>
-          <div className="flex justify-between gap-4">
-            <span>Buffering:</span>
+          <div>
+            <span className="block text-[10px] uppercase text-muted/80">Buffering:</span>
             <span className="text-text">
-              {sync.selfBuffering ? 'Self buffering' : sync.partnerBuffering ? 'Partner buffering' : 'None'}
+              {sync.selfBuffering ? 'Self buffering' : sync.partnerBuffering ? 'Partner' : 'None'}
             </span>
           </div>
         </div>

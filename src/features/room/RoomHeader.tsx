@@ -166,7 +166,7 @@ export function RoomHeader({
   return (
     <header className="sticky top-0 z-40 w-full border-b border-outline/30 bg-surface/95 backdrop-blur-md shadow-xs select-none">
       {/* Fixed h-12 Header Bar with drag region, branding, center nav tabs, right AV controls */}
-      <div data-tauri-drag-region className="flex h-12 w-full max-w-[1920px] mx-auto items-center justify-between px-4">
+      <div data-tauri-drag-region className="flex h-12 w-full max-w-[1920px] 2xl:max-w-none mx-auto items-center justify-between px-4 sm:px-6">
         {/* Left: Branding & Room Code Badge */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
@@ -335,11 +335,11 @@ export function RoomHeader({
       </div>
 
       {/* Top Sync Control Bar: Full-width container */}
-      <div className="w-full border-t border-outline/20 bg-surface-container/60 px-4 py-1.5">
-        <div className="flex w-full max-w-[1920px] mx-auto items-center justify-between gap-3 text-xs">
+      <div className="w-full border-t border-outline/20 bg-surface-container/60 px-4 sm:px-6 py-1.5">
+        <div className="flex w-full max-w-[1920px] 2xl:max-w-none mx-auto items-center justify-between gap-3 text-xs">
           {/* Partner presence pill + status chips */}
-          <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
-            <div className="flex items-center gap-2 rounded-full border border-outline/40 bg-surface-container px-3 py-1 text-xs shadow-xs">
+          <div className="flex items-center gap-2 min-w-0 flex-nowrap overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-2 rounded-full border border-outline/40 bg-surface-container px-3 py-1 text-xs shadow-xs shrink-0">
               {status === 'connected' ? (
                 partner ? (
                   <div className="flex items-center gap-1.5">
@@ -380,29 +380,31 @@ export function RoomHeader({
             </div>
 
             {partner && onSyncNow && !isStreamMode && (
-              <DriftIndicator drift={drift} onSyncNow={onSyncNow} />
+              <div className="shrink-0">
+                <DriftIndicator drift={drift} onSyncNow={onSyncNow} />
+              </div>
             )}
 
             {(isUsingMock || supabase.isMock) && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-container/15 px-2.5 py-0.5 text-[11px] font-medium text-primary border border-primary-container/30">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-container/15 px-2.5 py-0.5 text-[11px] font-medium text-primary border border-primary-container/30 shrink-0">
                 <span className="size-1.5 rounded-full bg-primary" />
                 Local sync mode
               </span>
             )}
 
-            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-surface-container-low border border-outline/30 px-2.5 py-0.5 text-[11px] font-medium text-muted">
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-surface-container-low border border-outline/30 px-2.5 py-0.5 text-[11px] font-medium text-muted shrink-0">
               <span className="size-1.5 rounded-full bg-tertiary" />
               WebRTC P2P Direct
             </span>
 
             {isStreamMode && (
-              <span className="flex items-center gap-1.5 rounded-full bg-primary-container/20 px-2.5 py-0.5 text-xs font-semibold text-primary border border-primary-container/40 shadow-xs">
+              <span className="flex items-center gap-1.5 rounded-full bg-primary-container/20 px-2.5 py-0.5 text-xs font-semibold text-primary border border-primary-container/40 shadow-xs shrink-0">
                 <span className="size-1.5 rounded-full bg-primary motion-safe:animate-pulse" />
                 Stream Mode
               </span>
             )}
 
-            {stats && <QualityBadge stats={stats} />}
+            {stats && <div className="shrink-0"><QualityBadge stats={stats} /></div>}
             {actions}
           </div>
 

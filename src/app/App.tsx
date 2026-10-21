@@ -340,7 +340,7 @@ function RoomSession({
         onToggleSyncLab={() => setIsSyncLabOpen((prev) => !prev)}
       />
 
-      <div className="w-full max-w-[1920px] mx-auto px-4 py-3 flex-1 flex flex-col gap-4">
+      <div className="w-full max-w-[1920px] 2xl:max-w-none mx-auto px-4 sm:px-6 py-2.5 flex-1 flex flex-col gap-3">
         {room.error && (
           <div role="alert" className="flex items-center justify-between rounded-lg border border-danger/40 bg-danger/10 p-3 text-xs text-danger">
             <span>{room.error}</span>
@@ -730,7 +730,7 @@ function RoomSession({
         >
           {/* Left Stage (9 columns in 12-column layout) */}
           <div
-            className={`relative flex flex-col gap-4 min-w-0 ${
+            className={`relative flex flex-col gap-3 min-w-0 ${
               !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:col-span-9' : 'lg:col-span-12'
             }`}
           >
@@ -800,7 +800,7 @@ function RoomSession({
               </Suspense>
 
               {chat.isOpen && (
-                <div className="h-[480px] lg:h-[500px] xl:h-[520px] w-full flex flex-col">
+                <div className="flex-1 min-h-[340px] max-h-[calc(100vh-280px)] w-full flex flex-col">
                   <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
                     <ChatView
                       messages={chat.messages}
@@ -818,7 +818,7 @@ function RoomSession({
       )}
 
       {/* Companion Synchronicity Status Strip & Footer */}
-      <footer className="flex flex-col gap-3 border-t border-outline/30 pt-3.5 text-xs text-muted mt-auto">
+      <footer className="flex flex-col gap-2.5 border-t border-outline/30 pt-2.5 text-xs text-muted mt-auto">
         <div className="hidden lg:flex items-center justify-between" data-testid="desktop-status-strip">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">

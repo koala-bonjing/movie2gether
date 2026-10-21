@@ -398,7 +398,7 @@ function getOrCreateMockUserId(): string {
 // -------------------------------------------------------------
 
 const cleanSupabaseUrl = env.VITE_SUPABASE_URL
-  ? env.VITE_SUPABASE_URL.replace(/\/rest\/v1.*$/i, '').replace(/\/+$/, '')
+  ? env.VITE_SUPABASE_URL.replace(/\/(rest|auth)\/v1.*$/i, '').replace(/\/+$/, '')
   : undefined;
 const isTestEnv = import.meta.env.MODE === 'test';
 const hasSupabaseConfig = !isTestEnv && Boolean(cleanSupabaseUrl && env.VITE_SUPABASE_ANON_KEY);
@@ -654,8 +654,11 @@ export async function joinRoomInDb(
 
 export async function leaveRoomInDb(code: string, userId: string): Promise<void> {
   if (rawSupabase) {
-    await rawSupabase.from('room_members').delete().match({ room_code: code, user_id: userId });
-    return;
+    try {
+      await rawSupabase.from('room_members').delete().match({ room_code: code, user_id: userId });
+    } catch (err) {
+      console.warn('Supabase leaveRoom failed:', err);
+    }
   }
 
   const members = getMockMembers();

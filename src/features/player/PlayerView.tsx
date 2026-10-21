@@ -162,12 +162,14 @@ export function PlayerView({
   };
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-3">
       {/* 16:9 Video Canvas Box with Ambient Gradients */}
       <div
         ref={setContainer}
         tabIndex={-1}
-        className="group relative aspect-video w-full max-h-[calc(100vh-210px)] overflow-hidden rounded-2xl border border-outline/40 bg-black shadow-2xl outline-none"
+        className={`group relative aspect-video w-full ${
+          source ? 'max-h-[calc(100vh-230px)]' : 'max-h-[280px] sm:max-h-[320px] lg:max-h-[calc(100vh-380px)]'
+        } overflow-hidden rounded-2xl border border-outline/40 bg-black shadow-2xl outline-none`}
       >
         {/* Top/bottom ambient gradients */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/70 via-black/20 to-transparent z-10" />
@@ -354,38 +356,141 @@ export function PlayerView({
             )}
           </>
         ) : (
-          <div className="grid size-full place-items-center p-4 text-center text-muted">
-            Pick a video below to start.
+          <div className="grid size-full place-items-center p-4 text-center text-muted select-none">
+            <div className="flex flex-col items-center gap-2">
+              <div className="grid size-11 place-items-center rounded-2xl bg-surface-container-high border border-outline/40 text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-5.5" aria-hidden="true">
+                  <path d="M4.5 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-9a3 3 0 0 0-3-3h-15ZM10.5 8.25a.75.75 0 0 1 1.13-.65l5.25 3a.75.75 0 0 1 0 1.3l-5.25 3a.75.75 0 0 1-1.13-.65v-6Z" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-text">Pick a video below to start.</p>
+              <p className="text-[11px] text-muted max-w-xs">Drop a local video file, paste a streaming link, or try the demo video.</p>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Inline Floating Emoji Reaction Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline/30 bg-surface-container-low px-4 py-2 text-xs shadow-xs">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-text select-none">Instant Reactions:</span>
-          <div className="flex items-center gap-1.5">
-            {['🍿', '❤️', '😂', '😭', '✨', '🫂'].map((emoji) => (
+      {/* When media source is loaded, show compact metadata strip + inline reaction bar */}
+      {source && (
+        <div className="flex flex-col gap-2">
+          {/* Video Metadata & Subtitles Strip */}
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline/30 bg-surface-container px-3.5 py-1.5 text-xs shadow-xs">
+            <div className="flex items-center gap-2 truncate max-w-full sm:max-w-[45%]">
+              <span className="grid size-5 place-items-center rounded-md bg-primary-container/20 text-primary font-bold text-[9px] shrink-0">
+                ▶
+              </span>
+              <span className="font-semibold text-text truncate text-xs">{source.label}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-muted text-[11px] font-mono-sm">
+              {meta && (
+                <span className="rounded-md bg-surface-container-high px-2 py-0.5 text-text">
+                  {meta.width}×{meta.height} · {formatTime(meta.duration)}
+                </span>
+              )}
+              {source.file && (
+                <span className="rounded-md bg-surface-container-high px-2 py-0.5">
+                  {mb.format(source.file.size / 1e6)}
+                </span>
+              )}
+              {info && (
+                <code title={info.hash} className="rounded-md bg-surface-container-high px-2 py-0.5 text-primary">
+                  {info.hash.slice(0, 10)}
+                </code>
+              )}
+              <div className="flex items-center gap-1.5 border-l border-outline/30 pl-2">
+                {subtitle ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-outline/40 bg-surface-container-low px-2 py-0.5 text-[10px] text-text shadow-xs">
+                    <span className="truncate max-w-[110px] font-mono-sm">{subtitle.label}</span>
+                    <span className="text-[10px] text-primary">({SUBTITLE_FONT_SIZES[subtitleFontSize].label})</span>
+                    <button
+                      type="button"
+                      onClick={() => setSubtitlesVisible((v) => !v)}
+                      className="ml-0.5 text-[10px] font-medium underline hover:text-primary cursor-pointer"
+                    >
+                      {subtitlesVisible ? 'Hide' : 'Show'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearSubtitles}
+                      className="text-xs text-muted hover:text-error ml-0.5 cursor-pointer"
+                      title="Remove subtitles"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ) : (
+                  <span className="text-muted text-[10px]">None loaded</span>
+                )}
+                <label className="cursor-pointer text-[11px] font-semibold text-primary hover:underline">
+                  <span>{subtitle ? 'Change' : '+ Subtitles'}</span>
+                  <input
+                    type="file"
+                    accept=".srt,.vtt,text/vtt"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) void handleLoadSubtitleFile(file);
+                    }}
+                  />
+                </label>
+                {subtitle && (
+                  <div className="flex items-center gap-0.5 rounded-lg border border-outline/40 bg-surface-container-low p-0.5 text-[9px]">
+                    {(['sm', 'md', 'lg'] as const).map((sz) => (
+                      <button
+                        key={sz}
+                        type="button"
+                        onClick={() => setSubtitleFontSize(sz)}
+                        className={`rounded-md px-1.5 py-0.2 transition cursor-pointer ${
+                          subtitleFontSize === sz
+                            ? 'bg-primary-container font-bold text-on-primary-container shadow-xs'
+                            : 'text-muted hover:text-text'
+                        }`}
+                      >
+                        {sz.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button
-                key={emoji}
                 type="button"
-                onClick={() => onReaction?.(emoji)}
-                className="grid size-8 place-items-center rounded-lg bg-surface-container hover:bg-surface-container-high text-base transition-transform hover:scale-125 active:scale-95 cursor-pointer shadow-xs"
-                aria-label={`React with ${emoji}`}
+                onClick={() => setSource(null)}
+                className="rounded-md bg-surface-container-high px-2 py-0.5 text-[11px] font-sans font-medium text-primary hover:bg-surface-variant transition cursor-pointer"
               >
-                {emoji}
+                Change file
               </button>
-            ))}
+            </div>
+          </div>
+
+          {/* Inline Reaction Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline/30 bg-surface-container-low px-3.5 py-1.5 text-xs shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-text select-none text-[11px]">Instant Reactions:</span>
+              <div className="flex items-center gap-1">
+                {['🍿', '❤️', '😂', '😭', '✨', '🫂'].map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => onReaction?.(emoji)}
+                    className="grid size-7 place-items-center rounded-lg bg-surface-container hover:bg-surface-container-high text-sm transition-transform hover:scale-125 active:scale-95 cursor-pointer shadow-xs"
+                    aria-label={`React with ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {lastReaction && (
+              <div className="flex items-center gap-1.5 text-[11px] text-muted font-medium">
+                <span>{lastReaction.from} sent</span>
+                <span className="text-sm">{lastReaction.emoji}</span>
+                <span className="text-muted/70">{lastReaction.time}</span>
+              </div>
+            )}
           </div>
         </div>
-        {lastReaction && (
-          <div className="flex items-center gap-1.5 text-[11px] text-muted font-medium">
-            <span>{lastReaction.from} sent</span>
-            <span className="text-base">{lastReaction.emoji}</span>
-            <span className="text-muted/70">{lastReaction.time}</span>
-          </div>
-        )}
-      </div>
+      )}
 
       {isStreamMode ? (
         <div className="flex items-center justify-between rounded-md border border-primary-container/30 bg-primary-container/10 p-3 text-xs text-muted">
@@ -397,123 +502,19 @@ export function PlayerView({
             <button
               type="button"
               onClick={onStopScreenShare}
-              className="text-primary underline font-medium hover:opacity-80"
+              className="text-primary underline font-medium hover:opacity-80 cursor-pointer"
             >
               Stop Sharing
             </button>
           )}
         </div>
       ) : (
-        <>
-          {source && (
-            <div className="flex flex-col gap-2.5">
-              {/* Video Metadata Strip */}
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline/30 bg-surface-container px-3.5 py-2 text-xs shadow-xs">
-                <div className="flex items-center gap-2 truncate max-w-full sm:max-w-[55%]">
-                  <span className="grid size-6 place-items-center rounded-md bg-primary-container/20 text-primary font-bold text-[10px] shrink-0">
-                    ▶
-                  </span>
-                  <span className="font-semibold text-text truncate">{source.label}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-muted text-[11px] font-mono-sm">
-                  {meta && (
-                    <span className="rounded-md bg-surface-container-high px-2 py-0.5 text-text">
-                      {meta.width}×{meta.height} · {formatTime(meta.duration)}
-                    </span>
-                  )}
-                  {source.file && (
-                    <span className="rounded-md bg-surface-container-high px-2 py-0.5">
-                      {mb.format(source.file.size / 1e6)}
-                    </span>
-                  )}
-                  {info && (
-                    <code title={info.hash} className="rounded-md bg-surface-container-high px-2 py-0.5 text-primary">
-                      {info.hash.slice(0, 12)}
-                    </code>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setSource(null)}
-                    className="rounded-md bg-surface-container-high px-2 py-0.5 text-[11px] font-sans font-medium text-primary hover:bg-surface-variant transition cursor-pointer"
-                  >
-                    Change file
-                  </button>
-                </div>
-              </div>
-
-              {/* Subtitles status & controls bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-outline/30 bg-surface-container px-3.5 py-2.5 text-xs shadow-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-text">Subtitles:</span>
-                  {subtitle ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline/40 bg-surface-container-low px-2.5 py-0.5 text-xs text-text shadow-xs">
-                      <span className="truncate max-w-[150px] font-mono-sm">{subtitle.label}</span>
-                      <span className="text-[10px] text-primary">({SUBTITLE_FONT_SIZES[subtitleFontSize].label})</span>
-                      <button
-                        type="button"
-                        onClick={() => setSubtitlesVisible((v) => !v)}
-                        className="ml-1 text-[11px] font-medium underline hover:text-primary"
-                      >
-                        {subtitlesVisible ? 'Hide' : 'Show'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleClearSubtitles}
-                        className="text-xs text-muted hover:text-error ml-1"
-                        title="Remove subtitles"
-                      >
-                        ✕
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="text-muted">None loaded</span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <label className="cursor-pointer text-xs font-semibold text-primary hover:underline">
-                    <span>{subtitle ? 'Change file (.srt / .vtt)' : '+ Add subtitles (.srt / .vtt)'}</span>
-                    <input
-                      type="file"
-                      accept=".srt,.vtt,text/vtt"
-                      className="sr-only"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = '';
-                        if (file) void handleLoadSubtitleFile(file);
-                      }}
-                    />
-                  </label>
-                  {subtitle && (
-                    <div className="flex items-center gap-1 rounded-lg border border-outline/40 bg-surface-container-low p-0.5 text-[10px]">
-                      {(['sm', 'md', 'lg'] as const).map((sz) => (
-                        <button
-                          key={sz}
-                          type="button"
-                          onClick={() => setSubtitleFontSize(sz)}
-                          className={`rounded-md px-2 py-0.5 transition ${
-                            subtitleFontSize === sz
-                              ? 'bg-primary-container font-bold text-on-primary-container shadow-xs'
-                              : 'text-muted hover:text-text'
-                          }`}
-                        >
-                          {sz.toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {!source && (
-            <FilePickerCard
-              onFile={(file) => load({ src: URL.createObjectURL(file), label: file.name, file })}
-              onUrl={(url) => load({ src: url, label: url })}
-            />
-          )}
-        </>
+        !source && (
+          <FilePickerCard
+            onFile={(file) => load({ src: URL.createObjectURL(file), label: file.name, file })}
+            onUrl={(url) => load({ src: url, label: url })}
+          />
+        )
       )}
     </section>
   );
