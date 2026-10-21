@@ -103,6 +103,7 @@ function RoomSession({
   // Layout & UI states
   const [isTheater, setIsTheater] = useState(false);
   const [mobileTab, setMobileTab] = useState<'chat' | 'call'>('chat');
+  const [mobileNav, setMobileNav] = useState<'theater' | 'library' | 'chat' | 'settings'>('theater');
   const [isBubbleHidden, setIsBubbleHidden] = useState(false);
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -296,8 +297,9 @@ function RoomSession({
   })();
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-7xl flex-col gap-6 p-4 sm:p-8 cinema-glow">
+    <main className="mx-auto flex min-h-dvh w-full max-w-[1600px] flex-col gap-5 p-3 sm:p-6 lg:p-8 cinema-glow overflow-x-hidden">
       <RoomHeader
+        isMobile={isMobile}
         roomCode={roomCode}
         status={room.status}
         self={room.self}
@@ -315,16 +317,6 @@ function RoomSession({
         isMicOn={call.isMicOn}
         onToggleCam={call.toggleCam}
         onToggleMic={call.toggleMic}
-        activeNavTab={isTheater ? 'theater' : 'chat'}
-        onNavTabChange={(tab) => {
-          if (tab === 'theater') {
-            setIsTheater(true);
-          } else if (tab === 'chat') {
-            setIsTheater(false);
-            if (!chat.isOpen) chat.setIsOpen(true);
-            setMobileTab('chat');
-          }
-        }}
       />
 
       {room.error && (
@@ -351,41 +343,62 @@ function RoomSession({
         </div>
       )}
 
-      {/* 12-Column Asymmetric Grid: Left Stage (9 cols), Right Sidebar (3 cols) */}
-      <div
-        className={`grid grid-cols-1 gap-6 items-start ${
-          !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:grid-cols-12' : ''
-        }`}
-      >
-        {/* Left Stage (9 columns in 12-column layout) */}
-        <div
-          className={`relative flex flex-col gap-6 min-w-0 ${
-            !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:col-span-9' : 'lg:col-span-12'
-          }`}
-        >
-          <PlayerView
-            onVideoRef={setVideoElement}
-            onMediaInfo={setLocalMedia}
-            partnerBuffering={sync.partnerBuffering}
-            isStreamMode={roomMode === 'stream'}
-            streamSource={call.isScreenSharing ? call.screenStream : call.remoteStream}
-            isScreenSharing={call.isScreenSharing}
-            streamerName={
-              call.isScreenSharing || streamerId === selfUserId
-                ? room.self?.name
-                : room.partner?.name ?? 'Partner'
-            }
-            onStopScreenShare={call.stopScreenShare}
-            onShareScreen={call.isScreenShareAvailable ? call.toggleScreenShare : undefined}
-            stats={call.remoteStats}
-            isTheater={isTheater}
-            onToggleTheater={() => setIsTheater((prev) => !prev)}
-            onSyncNow={sync.syncNow}
-            roomCode={roomCode}
-            onReaction={(emoji) => void chat.sendMessage(emoji)}
-            lastReaction={lastReaction}
-            actionToasts={toasts}
-          />
+      {/* MOBILE THEATER LAYOUT (< 1024px) */}
+      {isMobile ? (
+        <div className="flex flex-col gap-4 pb-24">
+          {/* Partner Sync Status Strip */}
+          <div className="flex items-center justify-between rounded-xl border border-outline/30 bg-surface-container px-3.5 py-2 shadow-xs text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="relative flex size-2.5 shrink-0">
+                <span className={`absolute inline-flex size-full animate-ping rounded-full opacity-75 ${room.partner ? 'bg-tertiary' : 'bg-warn'}`} />
+                <span className={`relative inline-flex size-2.5 rounded-full ${room.partner ? 'bg-tertiary' : 'bg-warn'}`} />
+              </span>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold text-text truncate text-xs">{room.partner?.name || 'Awaiting Partner'}</span>
+                  <span className="rounded-full bg-primary-container/20 px-1.5 py-0.2 text-[9px] font-bold text-primary">
+                    Host
+                  </span>
+                </div>
+                <span className="text-[10px] text-muted truncate">
+                  {room.partner ? (Math.abs(sync.drift) < 0.05 ? 'In sync' : `${Math.round(Math.abs(sync.drift) * 1000)}ms drift`) : 'Waiting for partner…'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="flex items-center gap-1 rounded-full bg-surface-container-low border border-outline/30 px-2 py-0.5 text-[10px] font-medium text-tertiary">
+                <span className="size-1.5 rounded-full bg-tertiary" />
+                P2P Direct
+              </span>
+            </div>
+          </div>
+
+          {/* Mobile Video Deck (rounded-xl) */}
+          <div className="w-full">
+            <PlayerView
+              onVideoRef={setVideoElement}
+              onMediaInfo={setLocalMedia}
+              partnerBuffering={sync.partnerBuffering}
+              isStreamMode={roomMode === 'stream'}
+              streamSource={call.isScreenSharing ? call.screenStream : call.remoteStream}
+              isScreenSharing={call.isScreenSharing}
+              streamerName={
+                call.isScreenSharing || streamerId === selfUserId
+                  ? room.self?.name
+                  : room.partner?.name ?? 'Partner'
+              }
+              onStopScreenShare={call.stopScreenShare}
+              onShareScreen={call.isScreenShareAvailable ? call.toggleScreenShare : undefined}
+              stats={call.remoteStats}
+              isTheater={isTheater}
+              onToggleTheater={() => setIsTheater((prev) => !prev)}
+              onSyncNow={sync.syncNow}
+              roomCode={roomCode}
+              onReaction={(emoji) => void chat.sendMessage(emoji)}
+              lastReaction={lastReaction}
+              actionToasts={toasts}
+            />
+          </div>
 
           {showBubble && (
             <Suspense fallback={null}>
@@ -416,134 +429,246 @@ function RoomSession({
             />
           )}
 
-          {/* Mobile Tab Bar (< 1024px) per DESIGN.md */}
-          {/* Mobile Tab Bar (< 1024px) per DESIGN.md */}
-          {isMobile && (
-            <div className="flex flex-col gap-4 mt-2">
-              <div
-                role="tablist"
-                aria-label="Room navigation"
-                className="grid grid-cols-2 rounded-xl border border-border bg-surface p-1 shadow-xs"
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  id="tab-chat"
-                  aria-selected={mobileTab === 'chat'}
-                  aria-controls="panel-chat"
-                  onClick={() => {
-                    setMobileTab('chat');
-                    setIsBubbleHidden(false);
-                  }}
-                  className={`flex min-h-11 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition ${
-                    mobileTab === 'chat'
-                      ? 'bg-accent text-bg shadow-sm'
-                      : 'text-muted hover:text-text hover:bg-surface-2'
-                  }`}
-                  data-testid="mobile-tab-chat"
-                >
-                  <span>Chat</span>
-                  {chat.unreadCount > 0 && (
-                    <span
-                      className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold leading-tight ${
-                        mobileTab === 'chat' ? 'bg-bg text-accent' : 'bg-accent text-bg'
-                      }`}
-                    >
-                      {chat.unreadCount}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  role="tab"
-                  id="tab-call"
-                  aria-selected={mobileTab === 'call'}
-                  aria-controls="panel-call"
-                  onClick={() => setMobileTab('call')}
-                  className={`flex min-h-11 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition ${
-                    mobileTab === 'call'
-                      ? 'bg-accent text-bg shadow-sm'
-                      : 'text-muted hover:text-text hover:bg-surface-2'
-                  }`}
-                  data-testid="mobile-tab-call"
-                >
-                  <span>Call</span>
-                  {call.connectionState !== 'idle' && (
-                    <span
-                      className={`size-2 rounded-full ${
-                        call.connectionState === 'connected' ? 'bg-success' : 'bg-warn animate-pulse'
-                      }`}
-                    />
-                  )}
-                </button>
-              </div>
-
-              <div className="w-full">
-                {mobileTab === 'chat' ? (
-                  <div
-                    id="panel-chat"
-                    role="tabpanel"
-                    aria-labelledby="tab-chat"
-                    className="h-[420px] w-full"
-                  >
-                    <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
-                      <ChatView
-                        messages={chat.messages}
-                        selfUserId={room.self?.userId ?? null}
-                        partnerName={room.partner?.name}
-                        onSendMessage={chat.sendMessage}
-                      />
-                    </Suspense>
-                  </div>
-                ) : (
-                  <div
-                    id="panel-call"
-                    role="tabpanel"
-                    aria-labelledby="tab-call"
-                    className="w-full"
-                  >
-                    <Suspense fallback={<div className="flex min-h-32 items-center justify-center text-xs text-muted">Loading call…</div>}>
-                      <CallSection
-                        call={call}
-                        partnerName={room.partner?.name}
-                        selfName={room.self?.name}
-                      />
-                    </Suspense>
-                  </div>
+          {/* Partner Presence Tray with Host Tag */}
+          <div className="flex items-center justify-between rounded-xl border border-outline/30 bg-surface-container p-3 shadow-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="relative shrink-0">
+                <div className="grid size-9 place-items-center rounded-full bg-surface-container-high text-xs font-bold text-text">
+                  {(room.partner?.name || 'Partner').slice(0, 2).toUpperCase()}
+                </div>
+                {room.partner && (
+                  <span className="absolute -bottom-1 -right-1 rounded-full bg-primary-container px-1 py-0.2 text-[8px] font-bold text-on-primary-container">
+                    Host
+                  </span>
                 )}
               </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-text truncate">{room.partner?.name || 'Partner'}</span>
+                  <span className={`size-1.5 rounded-full ${room.partner ? 'bg-tertiary' : 'bg-warn'}`} />
+                </div>
+                <p className="text-[10px] text-muted truncate">
+                  {call.connectionState === 'connected' ? 'Video call active' : room.partner ? 'Ready to watch' : 'Waiting in cinema'}
+                </p>
+              </div>
             </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {call.connectionState === 'connected' ? (
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('call')}
+                  className="rounded-full bg-tertiary/20 text-tertiary border border-tertiary/40 px-3 py-1 text-xs font-semibold cursor-pointer"
+                >
+                  In Call
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileTab('call');
+                    void call.startCall();
+                  }}
+                  disabled={!room.partner}
+                  className="rounded-full bg-primary-container text-on-primary-container px-3.5 py-1 text-xs font-semibold shadow-xs hover:bg-primary transition active:scale-95 disabled:opacity-40 cursor-pointer"
+                >
+                  Start Call
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Mobile Tab List (Chat & Call) */}
+          <div className="flex flex-col gap-4 mt-1">
+            <div
+              role="tablist"
+              aria-label="Room navigation"
+              className="grid grid-cols-2 rounded-xl border border-border bg-surface p-1 shadow-xs"
+            >
+              <button
+                type="button"
+                role="tab"
+                id="tab-chat"
+                aria-selected={mobileTab === 'chat'}
+                aria-controls="panel-chat"
+                onClick={() => {
+                  setMobileTab('chat');
+                  setIsBubbleHidden(false);
+                }}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition ${
+                  mobileTab === 'chat'
+                    ? 'bg-accent text-bg shadow-sm'
+                    : 'text-muted hover:text-text hover:bg-surface-2'
+                }`}
+                data-testid="mobile-tab-chat"
+              >
+                <span>Chat</span>
+                {chat.unreadCount > 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold leading-tight ${
+                      mobileTab === 'chat' ? 'bg-bg text-accent' : 'bg-accent text-bg'
+                    }`}
+                  >
+                    {chat.unreadCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                id="tab-call"
+                aria-selected={mobileTab === 'call'}
+                aria-controls="panel-call"
+                onClick={() => setMobileTab('call')}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition ${
+                  mobileTab === 'call'
+                    ? 'bg-accent text-bg shadow-sm'
+                    : 'text-muted hover:text-text hover:bg-surface-2'
+                }`}
+                data-testid="mobile-tab-call"
+              >
+                <span>Call</span>
+                {call.connectionState !== 'idle' && (
+                  <span
+                    className={`size-2 rounded-full ${
+                      call.connectionState === 'connected' ? 'bg-success' : 'bg-warn animate-pulse'
+                    }`}
+                  />
+                )}
+              </button>
+            </div>
+
+            <div className="w-full">
+              {mobileTab === 'chat' ? (
+                <div
+                  id="panel-chat"
+                  role="tabpanel"
+                  aria-labelledby="tab-chat"
+                  className="h-[420px] w-full"
+                >
+                  <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
+                    <ChatView
+                      messages={chat.messages}
+                      selfUserId={room.self?.userId ?? null}
+                      partnerName={room.partner?.name}
+                      onSendMessage={chat.sendMessage}
+                    />
+                  </Suspense>
+                </div>
+              ) : (
+                <div
+                  id="panel-call"
+                  role="tabpanel"
+                  aria-labelledby="tab-call"
+                  className="w-full"
+                >
+                  <Suspense fallback={<div className="flex min-h-32 items-center justify-center text-xs text-muted">Loading call…</div>}>
+                    <CallSection
+                      call={call}
+                      partnerName={room.partner?.name}
+                      selfName={room.self?.name}
+                    />
+                  </Suspense>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* DESKTOP 12-COLUMN ASYMMETRIC GRID (>= 1024px) */
+        <div
+          className={`grid grid-cols-1 gap-6 items-start ${
+            !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:grid-cols-12' : ''
+          }`}
+        >
+          {/* Left Stage (9 columns in 12-column layout) */}
+          <div
+            className={`relative flex flex-col gap-6 min-w-0 ${
+              !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:col-span-9' : 'lg:col-span-12'
+            }`}
+          >
+            <PlayerView
+              onVideoRef={setVideoElement}
+              onMediaInfo={setLocalMedia}
+              partnerBuffering={sync.partnerBuffering}
+              isStreamMode={roomMode === 'stream'}
+              streamSource={call.isScreenSharing ? call.screenStream : call.remoteStream}
+              isScreenSharing={call.isScreenSharing}
+              streamerName={
+                call.isScreenSharing || streamerId === selfUserId
+                  ? room.self?.name
+                  : room.partner?.name ?? 'Partner'
+              }
+              onStopScreenShare={call.stopScreenShare}
+              onShareScreen={call.isScreenShareAvailable ? call.toggleScreenShare : undefined}
+              stats={call.remoteStats}
+              isTheater={isTheater}
+              onToggleTheater={() => setIsTheater((prev) => !prev)}
+              onSyncNow={sync.syncNow}
+              roomCode={roomCode}
+              onReaction={(emoji) => void chat.sendMessage(emoji)}
+              lastReaction={lastReaction}
+              actionToasts={toasts}
+            />
+
+            {showBubble && (
+              <Suspense fallback={null}>
+                <FloatingCamBubble
+                  stream={call.remoteStream}
+                  partnerName={room.partner?.name ?? 'Partner'}
+                  isCamOn={call.remoteCamOn}
+                  isMicOn={call.remoteMicOn}
+                  stats={call.remoteStats}
+                  onExpand={() => {
+                    setMobileTab('call');
+                    setIsTheater(false);
+                  }}
+                  onClose={() => setIsBubbleHidden(true)}
+                />
+              </Suspense>
+            )}
+
+            {showMismatch && sync.partnerMedia && localMedia && (
+              <MediaMismatchDialog
+                localMedia={localMedia}
+                partnerMedia={sync.partnerMedia}
+                onDismiss={() => setDismissedHash(sync.partnerMedia?.hash ?? null)}
+                onChangeFile={() => {
+                  setLocalMedia(null);
+                  setDismissedHash(null);
+                }}
+              />
+            )}
+          </div>
+
+          {/* Desktop Companion Sidebar (3 columns of 12) */}
+          {!isTheater && (chat.isOpen || call.connectionState !== 'idle') && (
+            <aside className="lg:col-span-3 flex flex-col gap-4 w-full shrink-0">
+              <Suspense fallback={<div className="flex min-h-24 items-center justify-center text-xs text-muted">Loading call…</div>}>
+                <CallSection
+                  call={call}
+                  partnerName={room.partner?.name}
+                  selfName={room.self?.name}
+                />
+              </Suspense>
+
+              {chat.isOpen && (
+                <div className="h-[520px] w-full">
+                  <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
+                    <ChatView
+                      messages={chat.messages}
+                      selfUserId={room.self?.userId ?? null}
+                      partnerName={room.partner?.name}
+                      onSendMessage={chat.sendMessage}
+                      onClose={() => chat.setIsOpen(false)}
+                    />
+                  </Suspense>
+                </div>
+              )}
+            </aside>
           )}
         </div>
-
-        {/* Desktop Side Panel (>= 1024px) - 3 columns of 12 */}
-        {!isMobile && !isTheater && (chat.isOpen || call.connectionState !== 'idle') && (
-          <aside className="lg:col-span-3 flex flex-col gap-4 w-full shrink-0">
-            <Suspense fallback={<div className="flex min-h-24 items-center justify-center text-xs text-muted">Loading call…</div>}>
-              <CallSection
-                call={call}
-                partnerName={room.partner?.name}
-                selfName={room.self?.name}
-              />
-            </Suspense>
-
-            {chat.isOpen && (
-              <div className="h-[520px] w-full">
-                <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
-                  <ChatView
-                    messages={chat.messages}
-                    selfUserId={room.self?.userId ?? null}
-                    partnerName={room.partner?.name}
-                    onSendMessage={chat.sendMessage}
-                    onClose={() => chat.setIsOpen(false)}
-                  />
-                </Suspense>
-              </div>
-            )}
-          </aside>
-        )}
-      </div>
+      )}
 
       {/* Companion Synchronicity Status Strip & Footer */}
       <footer className="flex flex-col gap-3 border-t border-outline/30 pt-3.5 text-xs text-muted">
@@ -625,6 +750,100 @@ function RoomSession({
       </footer>
 
       <SyncDevOverlay sync={sync} roomCode={roomCode} />
+
+      {/* Fixed Mobile Bottom Navigation Bar (< 1024px) per Stitch Mobile Design */}
+      {isMobile && (
+        <nav
+          aria-label="Mobile Navigation"
+          className="fixed bottom-0 inset-x-0 z-40 flex items-center justify-around border-t border-outline/30 bg-surface-container-low/95 px-3 py-1.5 pb-safe backdrop-blur-md shadow-2xl"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setMobileNav('theater');
+              if (typeof window !== 'undefined') {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+            className={`flex flex-col items-center justify-center min-w-[64px] min-h-[44px] rounded-xl px-2.5 py-1 text-xs transition cursor-pointer ${
+              mobileNav === 'theater'
+                ? 'bg-primary-container text-on-primary-container font-bold shadow-xs'
+                : 'text-muted hover:text-text'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+              <path d="M3.25 4A2.25 2.25 0 0 0 1 6.25v7.5A2.25 2.25 0 0 0 3.25 16h7.5A2.25 2.25 0 0 0 13 13.75v-7.5A2.25 2.25 0 0 0 10.75 4h-7.5ZM14.5 7.025v5.95l3.58 2.046a.75.75 0 0 0 1.17-.653V5.632a.75.75 0 0 0-1.17-.653L14.5 7.025Z" />
+            </svg>
+            <span className="text-[10px] mt-0.5 font-medium">Theater</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMobileNav('library');
+              if (typeof document !== 'undefined') {
+                const picker = document.querySelector('input[type="file"]') as HTMLInputElement;
+                picker?.click();
+              }
+            }}
+            className={`flex flex-col items-center justify-center min-w-[64px] min-h-[44px] rounded-xl px-2.5 py-1 text-xs transition cursor-pointer ${
+              mobileNav === 'library'
+                ? 'bg-primary-container text-on-primary-container font-bold shadow-xs'
+                : 'text-muted hover:text-text'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+              <path d="M2 4.25A2.25 2.25 0 0 1 4.25 2h2.5A2.25 2.25 0 0 1 9 4.25v.75h7A2 2 0 0 1 18 7v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4.25Z" />
+            </svg>
+            <span className="text-[10px] mt-0.5 font-medium">Library</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMobileNav('chat');
+              setMobileTab('chat');
+              setIsBubbleHidden(false);
+              if (typeof document !== 'undefined') {
+                const chatInput = document.querySelector('[data-testid="chat-input"] input') as HTMLInputElement;
+                chatInput?.focus();
+              }
+            }}
+            className={`relative flex flex-col items-center justify-center min-w-[64px] min-h-[44px] rounded-xl px-2.5 py-1 text-xs transition cursor-pointer ${
+              mobileNav === 'chat'
+                ? 'bg-primary-container text-on-primary-container font-bold shadow-xs'
+                : 'text-muted hover:text-text'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+              <path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.532a2.25 2.25 0 0 0-1.88 2.2V11c0 1.25.98 2.26 2.23 2.3 1.34.04 2.68.12 4.02.24l2.67 2.14a.75.75 0 0 0 1.23-.58v-1.63c1.78-.17 3.52-.45 5.2-.83a2.25 2.25 0 0 0 1.88-2.2V4.732a2.25 2.25 0 0 0-1.88-2.2A49.19 49.19 0 0 0 10 2Z" clipRule="evenodd" />
+            </svg>
+            <span className="text-[10px] mt-0.5 font-medium">Chat</span>
+            {chat.unreadCount > 0 && (
+              <span className="absolute top-1.5 right-3 rounded-full bg-primary-container px-1 py-0.2 text-[9px] font-bold text-on-primary-container leading-none">
+                {chat.unreadCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMobileNav('settings');
+            }}
+            className={`flex flex-col items-center justify-center min-w-[64px] min-h-[44px] rounded-xl px-2.5 py-1 text-xs transition cursor-pointer ${
+              mobileNav === 'settings'
+                ? 'bg-primary-container text-on-primary-container font-bold shadow-xs'
+                : 'text-muted hover:text-text'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+              <path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1-1.187.447l-1.598-.54a6.993 6.993 0 0 1-1.929 1.115l-.33 1.652a1 1 0 0 1-.98.804H8.82a1 1 0 0 1-.98-.804l-.331-1.652a6.993 6.993 0 0 1-1.929-1.115l-1.598.54a1 1 0 0 1-1.186-.447l-1.18-2.044a1 1 0 0 1 .205-1.251l1.267-1.114a7.05 7.05 0 0 1 0-2.227L1.821 7.773a1 1 0 0 1-.206-1.25l1.18-2.045a1 1 0 0 1 1.187-.447l1.598.54A6.992 6.992 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" />
+            </svg>
+            <span className="text-[10px] mt-0.5 font-medium">Settings</span>
+          </button>
+        </nav>
+      )}
 
       {/* Transient Action Toasts */}
       <div

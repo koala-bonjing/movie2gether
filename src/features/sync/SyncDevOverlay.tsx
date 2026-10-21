@@ -24,7 +24,7 @@ export function SyncDevOverlay({ sync, roomCode }: SyncDevOverlayProps) {
       data-testid="sync-dev-overlay"
       className="fixed bottom-4 left-4 z-40 max-w-xs rounded-xl border border-outline/40 bg-surface-container-low/95 p-3.5 font-mono-sm text-[11px] text-text shadow-2xl backdrop-blur-md"
     >
-      <div className="flex items-center justify-between gap-3 border-b border-outline/30 pb-2 mb-2.5">
+      <div className={`flex items-center justify-between gap-3 ${collapsed ? '' : 'border-b border-outline/30 pb-2 mb-2.5'}`}>
         <span className="font-semibold text-primary uppercase tracking-wider text-[10px]">Sync Debug HUD</span>
         <button
           type="button"

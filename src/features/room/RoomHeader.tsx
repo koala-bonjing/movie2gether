@@ -28,6 +28,7 @@ export interface RoomHeaderProps {
   onToggleMic?: () => void;
   activeNavTab?: 'theater' | 'chat' | 'settings';
   onNavTabChange?: (tab: 'theater' | 'chat' | 'settings') => void;
+  isMobile?: boolean;
 }
 
 export function RoomHeader({
@@ -49,8 +50,7 @@ export function RoomHeader({
   isMicOn = true,
   onToggleCam,
   onToggleMic,
-  activeNavTab = 'theater',
-  onNavTabChange,
+  isMobile = false,
 }: RoomHeaderProps) {
   const [copiedKind, setCopiedKind] = useState<'code' | 'link' | null>(null);
 
@@ -76,6 +76,88 @@ export function RoomHeader({
       }
     }
   };
+
+  if (isMobile) {
+    return (
+      <header className="sticky top-0 z-40 flex items-center justify-between gap-2 border-b border-outline/30 bg-surface/95 px-3 py-2.5 pt-safe backdrop-blur-md shadow-xs">
+        {/* Brand with Twin-Ring Cinema Motif */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex size-7 items-center justify-center rounded-full bg-gradient-to-tr from-[#e8a0bf] via-[#ffd8e6] to-[#f2c57c] p-[1.5px] shadow-sm">
+            <div className="flex size-full items-center justify-center rounded-full bg-surface-container-lowest text-primary">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="size-3 translate-x-0.5"
+                aria-hidden="true"
+              >
+                <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+              </svg>
+            </div>
+          </div>
+          <span className="text-base font-bold tracking-tight text-text">Duet</span>
+        </div>
+
+        {/* Mobile Partner Status Pill: Sonny (In sync) [CODE] */}
+        <div className="flex items-center gap-1.5 rounded-full border border-outline/40 bg-surface-container px-2.5 py-1 text-xs shadow-xs min-w-0 max-w-[210px]">
+          {status === 'connected' ? (
+            partner ? (
+              <div className="flex items-center gap-1 min-w-0 truncate">
+                <span className="relative flex size-2 shrink-0">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-tertiary opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-tertiary" />
+                </span>
+                <span className="font-semibold text-text truncate text-[11px]">{partner.name}</span>
+                <span className="text-[10px] text-tertiary font-medium shrink-0">
+                  ({Math.abs(drift) < 0.05 ? 'In sync' : `${Math.round(Math.abs(drift) * 1000)}ms`})
+                </span>
+              </div>
+            ) : partnerStatus === 'left' ? (
+              <div className="flex items-center gap-1 text-warn text-[11px] font-medium truncate">
+                <StatusDot status="warn" />
+                <span className="truncate">Partner left</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-muted text-[11px] truncate">
+                <StatusDot status="warn" pulse />
+                <span className="truncate">Waiting for partner…</span>
+              </div>
+            )
+          ) : (
+            <div className="flex items-center gap-1 text-muted text-[11px] truncate">
+              <StatusDot status="muted" pulse />
+              <span className="truncate">Connecting…</span>
+            </div>
+          )}
+
+          {/* Room Code Badge */}
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="shrink-0 font-mono-sm text-[10px] font-bold text-primary hover:underline ml-0.5 border-l border-outline/40 pl-1.5"
+            title="Click to copy code"
+            aria-label={`Copy room code ${roomCode}`}
+          >
+            <span className="hidden sm:inline text-muted font-normal">Room: </span>
+            <span>[{roomCode}]</span>
+          </button>
+        </div>
+
+        {/* Right actions: Theme & Leave */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <ThemePicker />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onLeave}
+            className="text-error hover:bg-error/15 border border-error/30 hover:border-error/50 font-medium text-xs px-2.5 py-1 h-7 cursor-pointer"
+          >
+            Leave
+          </Button>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-4 border-b border-outline/30 pb-4">
@@ -125,52 +207,9 @@ export function RoomHeader({
         </div>
       </div>
 
-      {/* Navigation tabs (Theater, Chat, Settings) */}
-      <nav aria-label="Room views" className="hidden lg:flex items-center gap-1 rounded-full border border-outline/40 bg-surface-container p-1 text-xs">
-        <button
-          type="button"
-          onClick={() => onNavTabChange?.('theater')}
-          className={`rounded-full px-3 py-1 font-semibold transition cursor-pointer ${
-            activeNavTab === 'theater'
-              ? 'bg-primary-container text-on-primary-container shadow-xs'
-              : 'text-muted hover:text-text'
-          }`}
-        >
-          Theater
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onNavTabChange?.('chat');
-            if (onToggleChat && !chatOpen) onToggleChat();
-          }}
-          className={`relative inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold transition cursor-pointer ${
-            activeNavTab === 'chat'
-              ? 'bg-primary-container text-on-primary-container shadow-xs'
-              : 'text-muted hover:text-text'
-          }`}
-        >
-          <span>Chat</span>
-          {unreadCount > 0 && (
-            <span className="size-2 rounded-full bg-primary" />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => onNavTabChange?.('settings')}
-          className={`rounded-full px-3 py-1 font-semibold transition cursor-pointer ${
-            activeNavTab === 'settings'
-              ? 'bg-primary-container text-on-primary-container shadow-xs'
-              : 'text-muted hover:text-text'
-          }`}
-        >
-          Settings
-        </button>
-      </nav>
-
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-        {/* Partner Presence & Sync Status Pill */}
-        <div className="flex items-center gap-2 rounded-full border border-outline/40 bg-surface-container px-3 py-1 text-xs shadow-xs">
+      {/* Center: Partner Presence & Sync Status Pill */}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 rounded-full border border-outline/40 bg-surface-container px-3.5 py-1 text-xs shadow-xs">
           {status === 'connected' ? (
             partner ? (
               <div className="flex items-center gap-1.5">
@@ -213,7 +252,9 @@ export function RoomHeader({
         {partner && onSyncNow && !isStreamMode && (
           <DriftIndicator drift={drift} onSyncNow={onSyncNow} />
         )}
+      </div>
 
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {/* WebRTC P2P Direct Status Indicator */}
         <span className="hidden md:flex items-center gap-1.5 rounded-full bg-surface-container-low border border-outline/30 px-2.5 py-1 text-[11px] font-medium text-muted">
           <span className="size-1.5 rounded-full bg-tertiary" />

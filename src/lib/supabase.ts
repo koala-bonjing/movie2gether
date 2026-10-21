@@ -397,13 +397,17 @@ function getOrCreateMockUserId(): string {
 // Client Initialization
 // -------------------------------------------------------------
 
-const hasSupabaseConfig = Boolean(env.VITE_SUPABASE_URL && env.VITE_SUPABASE_ANON_KEY);
+const cleanSupabaseUrl = env.VITE_SUPABASE_URL
+  ? env.VITE_SUPABASE_URL.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '')
+  : undefined;
+const isTestEnv = import.meta.env.MODE === 'test';
+const hasSupabaseConfig = !isTestEnv && Boolean(cleanSupabaseUrl && env.VITE_SUPABASE_ANON_KEY);
 
 let rawSupabase: SupabaseClient | null = null;
 
-if (hasSupabaseConfig && env.VITE_SUPABASE_URL && env.VITE_SUPABASE_ANON_KEY) {
+if (hasSupabaseConfig && cleanSupabaseUrl && env.VITE_SUPABASE_ANON_KEY) {
   try {
-    rawSupabase = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, {
+    rawSupabase = createClient(cleanSupabaseUrl, env.VITE_SUPABASE_ANON_KEY, {
       auth: { persistSession: true, autoRefreshToken: true },
     });
   } catch (err) {
@@ -436,30 +440,67 @@ const mockClient: DuetClient = {
   },
 };
 
-export const supabase: DuetClient = rawSupabase
-  ? {
-      isMock: false,
-      channel: (topic, opts) => rawSupabase!.channel(topic, opts as never) as unknown as DuetChannel,
-      removeChannel: async (chan) => rawSupabase!.removeChannel(chan as unknown as RealtimeChannel) as never,
-      auth: {
-        getUser: async () => {
-          const res = await rawSupabase!.auth.getUser();
-          return { data: { user: res.data.user ? { id: res.data.user.id } : null }, error: res.error };
-        },
-        signInAnonymously: async () => {
-          const res = await rawSupabase!.auth.signInAnonymously();
-          return { data: { user: res.data.user ? { id: res.data.user.id } : null }, error: res.error };
-        },
-        getSession: async () => {
-          const res = await rawSupabase!.auth.getSession();
-          return {
-            data: { session: res.data.session ? { user: { id: res.data.session.user.id } } : null },
-            error: res.error,
-          };
-        },
-      },
+export const supabase: DuetClient = {
+  get isMock() {
+    return rawSupabase === null;
+  },
+  channel: (topic, opts) => {
+    if (rawSupabase) {
+      return rawSupabase.channel(topic, opts as never) as unknown as DuetChannel;
     }
-  : mockClient;
+    return mockClient.channel(topic, opts);
+  },
+  removeChannel: async (chan) => {
+    if (rawSupabase) {
+      return rawSupabase.removeChannel(chan as unknown as RealtimeChannel) as never;
+    }
+    return mockClient.removeChannel(chan);
+  },
+  auth: {
+    getUser: async () => {
+      if (rawSupabase) {
+        try {
+          const res = await rawSupabase.auth.getUser();
+          if (res.data.user) {
+            return { data: { user: { id: res.data.user.id } }, error: null };
+          }
+        } catch {
+          // fallback
+        }
+      }
+      return mockClient.auth.getUser();
+    },
+    signInAnonymously: async () => {
+      if (rawSupabase) {
+        try {
+          const res = await rawSupabase.auth.signInAnonymously();
+          if (res.data.user && !res.error) {
+            return { data: { user: { id: res.data.user.id } }, error: null };
+          }
+          console.warn('Supabase signInAnonymously failed, falling back to mock:', res.error?.message);
+          rawSupabase = null;
+        } catch (err) {
+          console.warn('Supabase signInAnonymously threw, falling back to mock:', err);
+          rawSupabase = null;
+        }
+      }
+      return mockClient.auth.signInAnonymously();
+    },
+    getSession: async () => {
+      if (rawSupabase) {
+        try {
+          const res = await rawSupabase.auth.getSession();
+          if (res.data.session) {
+            return { data: { session: { user: { id: res.data.session.user.id } } }, error: null };
+          }
+        } catch {
+          // fallback
+        }
+      }
+      return mockClient.auth.getSession();
+    },
+  },
+};
 
 // -------------------------------------------------------------
 // Database Operations Helper
@@ -472,16 +513,22 @@ export async function ensureAuth(): Promise<string> {
   }
   const { data, error } = await supabase.auth.signInAnonymously();
   if (error || !data?.user?.id) {
-    throw new Error(error?.message || 'Could not sign in anonymously');
+    return getOrCreateMockUserId();
   }
   return data.user.id;
 }
 
 export async function createRoomInDb(code: string, userId: string): Promise<{ success: boolean; error?: string }> {
   if (rawSupabase) {
-    const { error } = await rawSupabase.from('rooms').insert({ code, created_by: userId });
-    if (error) return { success: false, error: error.message };
-    return { success: true };
+    try {
+      const { error } = await rawSupabase.from('rooms').insert({ code, created_by: userId });
+      if (!error) return { success: true };
+      console.warn('Supabase createRoom failed, falling back to local mock:', error.message);
+      rawSupabase = null;
+    } catch (err) {
+      console.warn('Supabase createRoom threw, falling back to local mock:', err);
+      rawSupabase = null;
+    }
   }
 
   // Mock implementation
@@ -500,50 +547,53 @@ export async function joinRoomInDb(
   displayName: string,
 ): Promise<{ success: boolean; error?: string }> {
   if (rawSupabase) {
-    // Check if room exists
-    const { data: room, error: roomError } = await rawSupabase
-      .from('rooms')
-      .select('code')
-      .eq('code', code)
-      .maybeSingle();
+    try {
+      const { data: room, error: roomError } = await rawSupabase
+        .from('rooms')
+        .select('code')
+        .eq('code', code)
+        .maybeSingle();
 
-    if (roomError) {
-      return { success: false, error: roomError.message };
-    }
-    if (!room) {
-      return { success: false, error: 'Room not found. Please check the room code.' };
-    }
+      if (!roomError && room) {
+        // Check if already a member (re-join / refresh)
+        const { data: existingMember } = await rawSupabase
+          .from('room_members')
+          .select('user_id')
+          .match({ room_code: code, user_id: userId })
+          .maybeSingle();
 
-    // Check if already a member (re-join / refresh)
-    const { data: existingMember } = await rawSupabase
-      .from('room_members')
-      .select('user_id')
-      .match({ room_code: code, user_id: userId })
-      .maybeSingle();
+        if (existingMember) {
+          return { success: true };
+        }
 
-    if (existingMember) {
-      return { success: true };
-    }
-
-    // Insert membership
-    const { error } = await rawSupabase.from('room_members').insert({
-      room_code: code,
-      user_id: userId,
-      display_name: displayName,
-    });
-    if (error) {
-      if (error.code === '23505') {
-        return { success: true };
+        // Insert membership
+        const { error } = await rawSupabase.from('room_members').insert({
+          room_code: code,
+          user_id: userId,
+          display_name: displayName,
+        });
+        if (!error || error.code === '23505') {
+          return { success: true };
+        }
+        if (error.code === '23503') {
+          return { success: false, error: 'Room not found. Please check the room code.' };
+        }
+        if (error.message.includes('violates row-level security') || error.code === '42501') {
+          return { success: false, error: 'Room is full (max 2 people).' };
+        }
+      } else if (roomError) {
+        console.warn('Supabase joinRoom query failed, falling back to local mock:', roomError.message);
+        rawSupabase = null;
+      } else if (!room) {
+        const mockRooms = getMockRooms();
+        if (!mockRooms[code]) {
+          return { success: false, error: 'Room not found. Please check the room code.' };
+        }
       }
-      if (error.code === '23503') {
-        return { success: false, error: 'Room not found. Please check the room code.' };
-      }
-      if (error.message.includes('violates row-level security') || error.code === '42501') {
-        return { success: false, error: 'Room is full (max 2 people).' };
-      }
-      return { success: false, error: error.message };
+    } catch (err) {
+      console.warn('Supabase joinRoom threw, falling back to local mock:', err);
+      rawSupabase = null;
     }
-    return { success: true };
   }
 
   // Mock implementation
