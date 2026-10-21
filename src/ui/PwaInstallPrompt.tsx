@@ -1,9 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Button } from './index';
 
-interface BeforeInstallPromptEvent extends Event {
+export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
+export function isRunningStandalone(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    Boolean(window.matchMedia?.('(display-mode: standalone)').matches) ||
+    (window.navigator as unknown as { standalone?: boolean })?.standalone === true
+  );
 }
 
 export function PwaInstallPrompt() {
@@ -22,11 +30,19 @@ export function PwaInstallPrompt() {
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
   }, []);
 
-  if (!deferredPrompt || isDismissed) {
+  if (!deferredPrompt || isDismissed || isRunningStandalone()) {
     return null;
   }
 

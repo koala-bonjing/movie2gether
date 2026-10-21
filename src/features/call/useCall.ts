@@ -208,14 +208,36 @@ export function useCall({
   );
 
   const restartIce = useCallback(() => {
-    if (pcRef.current && typeof pcRef.current.restartIce === 'function') {
+    const pc = pcRef.current;
+    if (pc && typeof pc.restartIce === 'function') {
       try {
-        pcRef.current.restartIce();
+        pc.restartIce();
+        if (pc.signalingState === 'stable') {
+          makingOfferRef.current = true;
+          pc.setLocalDescription()
+            .then(() => {
+              if (pc.localDescription) {
+                sendSignal({
+                  type: 'description',
+                  description: {
+                    type: pc.localDescription.type,
+                    sdp: pc.localDescription.sdp,
+                  },
+                });
+              }
+            })
+            .catch((err) => {
+              console.warn('restartIce offer generation failed:', err);
+            })
+            .finally(() => {
+              makingOfferRef.current = false;
+            });
+        }
       } catch (err) {
         console.warn('restartIce failed:', err);
       }
     }
-  }, []);
+  }, [sendSignal]);
 
   const toggleCam = useCallback(() => {
     if (!localStreamRef.current) return;
@@ -321,7 +343,8 @@ export function useCall({
           setConnectionState('disconnected');
         } else if (state === 'failed') {
           setConnectionState('failed');
-          setErrorMessage('P2P connection failed. Check your network or firewall settings (TURN may be required).');
+          setErrorMessage('P2P connection dropped. Attempting automatic reconnection…');
+          restartIce();
         }
       };
 
@@ -656,6 +679,30 @@ export function useCall({
           }
         } catch (err) {
           console.warn('Signaling description error:', err);
+          // If remote peer reloaded and sent an offer with incompatible m-lines order,
+          // recreate local peer connection with existing local stream and accept the offer
+          if (isOffer && localStreamRef.current) {
+            try {
+              if (pc) {
+                pc.close();
+              }
+              const newPc = initPeerConnection(localStreamRef.current);
+              await newPc.setRemoteDescription(desc);
+              await drainPendingCandidates(newPc);
+              await newPc.setLocalDescription();
+              if (newPc.localDescription) {
+                sendSignal({
+                  type: 'description',
+                  description: {
+                    type: newPc.localDescription.type,
+                    sdp: newPc.localDescription.sdp,
+                  },
+                });
+              }
+            } catch (retryErr) {
+              console.warn('Retry with clean PeerConnection failed:', retryErr);
+            }
+          }
         }
         return;
       }
@@ -684,6 +731,28 @@ export function useCall({
 
     channel.on('broadcast', { event: 'signal' }, handleSignal);
   }, [channel, endCall, sendSignal]);
+
+  // Automatic WebRTC re-negotiation when network comes back online
+  useEffect(() => {
+    const handleOnline = () => {
+      if (pcRef.current && connectionState !== 'idle') {
+        restartIce();
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline);
+      return () => window.removeEventListener('online', handleOnline);
+    }
+  }, [connectionState, restartIce]);
+
+  // Re-sync media state and restart ICE if channel reconnects while in call
+  useEffect(() => {
+    if (!channel) return;
+    if (connectionState === 'connected' || connectionState === 'disconnected') {
+      restartIce();
+      sendMediaState(isCamOnRef.current, isMicOnRef.current, isScreenSharingRef.current);
+    }
+  }, [channel, connectionState, restartIce, sendMediaState]);
 
   // Cleanup on unmount
   useEffect(() => {

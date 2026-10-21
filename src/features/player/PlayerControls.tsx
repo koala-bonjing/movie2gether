@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, type ReactNode } from 'react';
 import { IconButton, QualityBadge } from '../../ui';
 import type { VideoStats } from '../call/webrtc';
 import { formatTime } from './media';
-import { SUBTITLE_FONT_SIZES, type SubtitleFontSize } from './subtitles';
+import { SUBTITLE_FONT_SIZES, type SubtitleFontSize } from './subtitleTypes';
 
 const SKIP_S = 5;
 const EVENTS = ['play', 'pause', 'timeupdate', 'durationchange', 'progress', 'volumechange', 'seeked'];
@@ -69,12 +69,29 @@ const isFullscreenSupported = () =>
 
 const toggleFullscreen = (container: HTMLElement, video: HTMLVideoElement) => {
   const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> };
+  const orientation = typeof screen !== 'undefined' && 'orientation' in screen ? screen.orientation : null;
+
   if (document.fullscreenElement || doc.webkitFullscreenElement) {
+    if (orientation && typeof (orientation as unknown as { unlock?: () => void }).unlock === 'function') {
+      try {
+        (orientation as unknown as { unlock: () => void }).unlock();
+      } catch {
+        // ignore
+      }
+    }
     if (document.exitFullscreen) void document.exitFullscreen().catch(() => {});
     else if (doc.webkitExitFullscreen) void doc.webkitExitFullscreen();
   } else {
-    if (container.requestFullscreen) void container.requestFullscreen().catch(() => {});
-    else if ('webkitRequestFullscreen' in container) {
+    if (container.requestFullscreen) {
+      void container
+        .requestFullscreen()
+        .then(() => {
+          if (orientation && typeof (orientation as unknown as { lock?: (o: string) => Promise<void> }).lock === 'function') {
+            (orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape').catch(() => {});
+          }
+        })
+        .catch(() => {});
+    } else if ('webkitRequestFullscreen' in container) {
       void (container as HTMLElement & { webkitRequestFullscreen: () => void }).webkitRequestFullscreen();
     } else if ('webkitEnterFullscreen' in video) {
       (video as HTMLVideoElement & { webkitEnterFullscreen: () => void }).webkitEnterFullscreen();

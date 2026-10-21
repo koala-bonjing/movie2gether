@@ -65,7 +65,15 @@ test.describe('Phase 9: Hardening, Reconnects & Multi-Peer E2E', () => {
       timeout: 10000,
     });
 
-    // 6. End Call cleanly
+    // 6. Verify Call can be re-established after recovery (Alice auto-renegotiates via Perfect Negotiation)
+    const bobReCallBtn = pageBob.getByTestId('start-call-btn');
+    await expect(bobReCallBtn).toBeVisible({ timeout: 10000 });
+    await bobReCallBtn.click();
+
+    await expect(pageAlice.getByTestId('cam-tile-remote')).toBeVisible({ timeout: 15000 });
+    await expect(pageBob.getByTestId('cam-tile-remote')).toBeVisible({ timeout: 15000 });
+
+    // 7. End Call cleanly
     const aliceEndBtn = pageAlice.getByTestId('end-call-btn');
     if (await aliceEndBtn.isVisible()) {
       await aliceEndBtn.click();

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { Button, QualityBadge } from '../../ui';
 import { requestKeepAwake, releaseKeepAwake } from '../../lib/keepAwake';
 import type { VideoStats } from '../call/webrtc';
@@ -6,12 +6,12 @@ import { FilePickerCard } from './FilePickerCard';
 import { PlayerControls } from './PlayerControls';
 import { fingerprint, formatTime, type MediaInfo } from './media';
 import {
-  parseSubtitleFile,
-  createSubtitleBlobUrl,
   SUBTITLE_FONT_SIZES,
   type SubtitleTrack,
   type SubtitleFontSize,
-} from './subtitles';
+} from './subtitleTypes';
+
+const StreamPlayerView = lazy(() => import('./StreamPlayerView'));
 
 type Source = { src: string; label: string; file?: File };
 type Meta = { duration: number; width: number; height: number };
@@ -109,7 +109,14 @@ export function PlayerView({
   }, [source, meta]);
 
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && videoElementRef.current && !videoElementRef.current.paused) {
+        void requestKeepAwake();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       void releaseKeepAwake();
     };
   }, []);
@@ -124,6 +131,7 @@ export function PlayerView({
 
   const handleLoadSubtitleFile = async (file: File) => {
     try {
+      const { parseSubtitleFile, createSubtitleBlobUrl } = await import('./subtitles');
       const parsed = await parseSubtitleFile(file);
       const url = createSubtitleBlobUrl(parsed.vttContent);
       setSubtitle((prev) => {
@@ -170,14 +178,16 @@ export function PlayerView({
               )}
             </div>
           ) : streamSource ? (
-            <StreamPlayerView
-              streamSource={streamSource}
-              container={container}
-              stats={stats}
-              streamerName={streamerName}
-              isTheater={isTheater}
-              onToggleTheater={onToggleTheater}
-            />
+            <Suspense fallback={<div className="grid size-full place-items-center text-muted select-none">Loading stream…</div>}>
+              <StreamPlayerView
+                streamSource={streamSource}
+                container={container}
+                stats={stats}
+                streamerName={streamerName}
+                isTheater={isTheater}
+                onToggleTheater={onToggleTheater}
+              />
+            </Suspense>
           ) : (
             <div className="grid size-full place-items-center p-4 text-center text-muted select-none">
               <div className="flex items-center gap-2">
@@ -408,64 +418,5 @@ export function PlayerView({
         </>
       )}
     </section>
-  );
-}
-
-function StreamPlayerView({
-  streamSource,
-  container,
-  stats,
-  streamerName,
-  isTheater = false,
-  onToggleTheater,
-}: {
-  streamSource: MediaStream;
-  container: HTMLElement | null;
-  stats?: VideoStats | null;
-  streamerName?: string;
-  isTheater?: boolean;
-  onToggleTheater?: () => void;
-}) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
-
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = streamSource;
-      videoRef.current.play().catch(() => {});
-    }
-  }, [streamSource]);
-
-  const handleVideoRef = (el: HTMLVideoElement | null) => {
-    videoRef.current = el;
-    setVideoElement(el);
-  };
-
-  return (
-    <div className="relative size-full" data-testid="screen-stream-remote">
-      <video
-        ref={handleVideoRef}
-        autoPlay
-        playsInline
-        className="size-full object-contain"
-      />
-      <div className="absolute top-3 left-3 z-20 flex items-center gap-2 rounded-full bg-black/70 border border-white/10 px-3 py-1 backdrop-blur-xs select-none">
-        <span className="flex items-center gap-1.5 text-xs font-semibold text-text">
-          <span className="size-2 rounded-full bg-danger animate-pulse" />
-          <span>Screen: {streamerName || 'Partner'}</span>
-        </span>
-        {stats && <QualityBadge stats={stats} />}
-      </div>
-      {videoElement && container && (
-        <PlayerControls
-          video={videoElement}
-          container={container}
-          isStream={true}
-          stats={stats}
-          isTheater={isTheater}
-          onToggleTheater={onToggleTheater}
-        />
-      )}
-    </div>
   );
 }
