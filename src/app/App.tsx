@@ -7,7 +7,8 @@ import { useSync, MediaMismatchDialog, SyncDevOverlay } from '../features/sync';
 import { safeParseRoomModeMsg } from '../features/sync/protocol';
 import { useChat } from '../features/chat/useChat';
 import { useCall } from '../features/call/useCall';
-import { Toast, PwaInstallPrompt } from '../ui';
+import { Toast, PwaInstallPrompt, Button } from '../ui';
+import { ThemePicker } from '../features/theme';
 
 const CallSection = lazy(() =>
   import('../features/call/CallSection').then((m) => ({ default: m.CallSection })),
@@ -102,7 +103,7 @@ function RoomSession({
 
   // Layout & UI states
   const [isTheater, setIsTheater] = useState(false);
-  const [mobileTab, setMobileTab] = useState<'chat' | 'call'>('chat');
+  const [mobileTab, setMobileTab] = useState<'chat' | 'call' | 'settings'>('chat');
   const [mobileNav, setMobileNav] = useState<'theater' | 'library' | 'chat' | 'settings'>('theater');
   const [isBubbleHidden, setIsBubbleHidden] = useState(false);
   const [isMobile, setIsMobile] = useState(() => {
@@ -477,12 +478,30 @@ function RoomSession({
             </div>
           </div>
 
-          {/* Mobile Tab List (Chat & Call) */}
-          <div className="flex flex-col gap-4 mt-1">
+          {/* Mobile Bottom Sheet (Chat, Call & Settings) per Stitch Mobile Design */}
+          <div className="flex flex-col gap-3 rounded-2xl border border-outline/30 bg-surface-container p-3 sm:p-4 shadow-xl">
+            {/* Grab handle bar */}
+            <div className="w-12 h-1 rounded-full bg-outline/60 mx-auto" />
+
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-text uppercase tracking-wider">
+                  {mobileTab === 'chat' ? 'Realtime Chat' : mobileTab === 'call' ? 'Companion Video Call' : 'Cinema Settings'}
+                </span>
+                {mobileTab === 'chat' && chat.unreadCount > 0 && (
+                  <span className="rounded-full bg-primary-container px-1.5 py-0.2 text-[10px] font-bold text-on-primary-container">
+                    {chat.unreadCount} new
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] text-muted">Direct P2P</span>
+            </div>
+
+            {/* Segmented Control / Tab List */}
             <div
               role="tablist"
               aria-label="Room navigation"
-              className="grid grid-cols-2 rounded-xl border border-border bg-surface p-1 shadow-xs"
+              className="grid grid-cols-3 rounded-xl border border-outline/30 bg-surface-container-low p-1 shadow-xs"
             >
               <button
                 type="button"
@@ -492,20 +511,21 @@ function RoomSession({
                 aria-controls="panel-chat"
                 onClick={() => {
                   setMobileTab('chat');
+                  setMobileNav('chat');
                   setIsBubbleHidden(false);
                 }}
-                className={`flex min-h-11 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition ${
+                className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   mobileTab === 'chat'
-                    ? 'bg-accent text-bg shadow-sm'
-                    : 'text-muted hover:text-text hover:bg-surface-2'
+                    ? 'bg-primary-container text-on-primary-container shadow-xs font-bold'
+                    : 'text-muted hover:text-text'
                 }`}
                 data-testid="mobile-tab-chat"
               >
                 <span>Chat</span>
                 {chat.unreadCount > 0 && (
                   <span
-                    className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold leading-tight ${
-                      mobileTab === 'chat' ? 'bg-bg text-accent' : 'bg-accent text-bg'
+                    className={`rounded-full px-1.5 py-0.2 text-[9px] font-bold leading-tight ${
+                      mobileTab === 'chat' ? 'bg-surface-container-lowest text-primary' : 'bg-primary text-surface-container-lowest'
                     }`}
                   >
                     {chat.unreadCount}
@@ -519,11 +539,14 @@ function RoomSession({
                 id="tab-call"
                 aria-selected={mobileTab === 'call'}
                 aria-controls="panel-call"
-                onClick={() => setMobileTab('call')}
-                className={`flex min-h-11 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition ${
+                onClick={() => {
+                  setMobileTab('call');
+                  setMobileNav('theater');
+                }}
+                className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   mobileTab === 'call'
-                    ? 'bg-accent text-bg shadow-sm'
-                    : 'text-muted hover:text-text hover:bg-surface-2'
+                    ? 'bg-primary-container text-on-primary-container shadow-xs font-bold'
+                    : 'text-muted hover:text-text'
                 }`}
                 data-testid="mobile-tab-call"
               >
@@ -531,15 +554,35 @@ function RoomSession({
                 {call.connectionState !== 'idle' && (
                   <span
                     className={`size-2 rounded-full ${
-                      call.connectionState === 'connected' ? 'bg-success' : 'bg-warn animate-pulse'
+                      call.connectionState === 'connected' ? 'bg-tertiary' : 'bg-warn animate-pulse'
                     }`}
                   />
                 )}
               </button>
+
+              <button
+                type="button"
+                role="tab"
+                id="tab-settings"
+                aria-selected={mobileTab === 'settings'}
+                aria-controls="panel-settings"
+                onClick={() => {
+                  setMobileTab('settings');
+                  setMobileNav('settings');
+                }}
+                className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  mobileTab === 'settings'
+                    ? 'bg-primary-container text-on-primary-container shadow-xs font-bold'
+                    : 'text-muted hover:text-text'
+                }`}
+                data-testid="mobile-tab-settings"
+              >
+                <span>Settings</span>
+              </button>
             </div>
 
-            <div className="w-full">
-              {mobileTab === 'chat' ? (
+            <div className="w-full pt-1">
+              {mobileTab === 'chat' && (
                 <div
                   id="panel-chat"
                   role="tabpanel"
@@ -555,7 +598,9 @@ function RoomSession({
                     />
                   </Suspense>
                 </div>
-              ) : (
+              )}
+
+              {mobileTab === 'call' && (
                 <div
                   id="panel-call"
                   role="tabpanel"
@@ -569,6 +614,87 @@ function RoomSession({
                       selfName={room.self?.name}
                     />
                   </Suspense>
+                </div>
+              )}
+
+              {mobileTab === 'settings' && (
+                <div
+                  id="panel-settings"
+                  role="tabpanel"
+                  aria-labelledby="tab-settings"
+                  className="flex flex-col gap-3 py-1"
+                >
+                  {/* Theme selection */}
+                  <div className="flex items-center justify-between rounded-xl border border-outline/30 bg-surface-container-low p-3 shadow-xs">
+                    <div>
+                      <span className="text-xs font-bold text-text">Cinema Theme</span>
+                      <p className="text-[10px] text-muted">Nocturne Intimacy color palette</p>
+                    </div>
+                    <ThemePicker />
+                  </div>
+
+                  {/* Room Share & Invite */}
+                  <div className="flex items-center justify-between rounded-xl border border-outline/30 bg-surface-container-low p-3 shadow-xs">
+                    <div>
+                      <span className="text-xs font-bold text-text">Room Code</span>
+                      <p className="text-[11px] text-primary font-mono-sm font-bold">[{roomCode}]</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void navigator.clipboard?.writeText(roomCode);
+                          showToast('Room code copied');
+                        }}
+                        className="rounded-full bg-surface-container-high border border-outline/40 px-3 py-1 text-xs text-text hover:text-primary transition cursor-pointer"
+                      >
+                        Copy Code
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = `${window.location.origin}?room=${roomCode}`;
+                          void navigator.clipboard?.writeText(url);
+                          showToast('Invite link copied');
+                        }}
+                        className="rounded-full bg-primary-container text-on-primary-container px-3 py-1 text-xs font-semibold shadow-xs hover:bg-primary transition cursor-pointer"
+                      >
+                        Share Link
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Direct WebRTC Mesh info */}
+                  <div className="rounded-xl border border-outline/30 bg-surface-container-low p-3 text-xs space-y-2 shadow-xs">
+                    <div className="flex justify-between items-center text-muted text-[11px]">
+                      <span>Mesh Protocol:</span>
+                      <span className="text-tertiary font-semibold flex items-center gap-1">
+                        <span className="size-1.5 rounded-full bg-tertiary" />
+                        P2P WebRTC Direct
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-muted text-[11px]">
+                      <span>Latency Target:</span>
+                      <span className="text-text font-mono-sm">&lt; 28ms</span>
+                    </div>
+                    <div className="flex justify-between items-center text-muted text-[11px]">
+                      <span>Audio Channel:</span>
+                      <span className="text-text font-mono-sm">48kHz Opus Direct</span>
+                    </div>
+                    <div className="flex justify-between items-center text-muted text-[11px]">
+                      <span>Privacy:</span>
+                      <span className="text-primary font-mono-sm">Zero-Knowledge Encrypted</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={handleLeave}
+                    className="w-full text-xs font-semibold h-10 mt-1 cursor-pointer"
+                  >
+                    Leave Cinema Room
+                  </Button>
                 </div>
               )}
             </div>
@@ -830,6 +956,7 @@ function RoomSession({
             type="button"
             onClick={() => {
               setMobileNav('settings');
+              setMobileTab('settings');
             }}
             className={`flex flex-col items-center justify-center min-w-[64px] min-h-[44px] rounded-xl px-2.5 py-1 text-xs transition cursor-pointer ${
               mobileNav === 'settings'

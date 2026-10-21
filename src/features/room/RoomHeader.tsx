@@ -95,7 +95,7 @@ export function RoomHeader({
               </svg>
             </div>
           </div>
-          <span className="text-base font-bold tracking-tight text-text">Duet</span>
+          <h1 className="text-base font-bold tracking-tight text-text">Duet</h1>
         </div>
 
         {/* Mobile Partner Status Pill: Sonny (In sync) [CODE] */}
@@ -138,7 +138,7 @@ export function RoomHeader({
             title="Click to copy code"
             aria-label={`Copy room code ${roomCode}`}
           >
-            <span className="hidden sm:inline text-muted font-normal">Room: </span>
+            <span className="text-muted font-normal">Room: </span>
             <span>[{roomCode}]</span>
           </button>
         </div>
