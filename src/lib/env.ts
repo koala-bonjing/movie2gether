@@ -4,9 +4,15 @@ import { z } from 'zod';
 const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((v) => (v === '' ? undefined : v), schema.optional());
 
+// Clean and sanitize Supabase URL (strip any trailing /rest/v1.* or slashes)
+const cleanSupabaseUrlString = (val: unknown) => {
+  if (typeof val !== 'string' || val.trim() === '') return undefined;
+  return val.trim().replace(/\/rest\/v1.*$/i, '').replace(/\/+$/, '');
+};
+
 const schema = z.object({
   // Optional until Phase 2 wires Supabase; tighten to required then.
-  VITE_SUPABASE_URL: optional(z.url()),
+  VITE_SUPABASE_URL: z.preprocess(cleanSupabaseUrlString, z.string().url().optional()),
   VITE_SUPABASE_ANON_KEY: optional(z.string()),
   VITE_STUN_URLS: z
     .string()

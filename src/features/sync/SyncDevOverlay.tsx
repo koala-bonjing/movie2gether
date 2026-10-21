@@ -4,17 +4,26 @@ import type { UseSyncReturn } from './useSync';
 export interface SyncDevOverlayProps {
   sync: UseSyncReturn;
   roomCode: string;
+  isOpen?: boolean;
+  onToggle?: () => void;
 }
 
-export function SyncDevOverlay({ sync, roomCode }: SyncDevOverlayProps) {
-  const [collapsed, setCollapsed] = useState(
+export function SyncDevOverlay({ sync, roomCode, isOpen, onToggle }: SyncDevOverlayProps) {
+  const [internalCollapsed, setInternalCollapsed] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < 768,
   );
 
-  // In non-dev environments, do not render unless explicitly in test/preview
-  if (!import.meta.env.DEV && import.meta.env.MODE !== 'test') {
+  const isExplicit = isOpen !== undefined;
+  // If controlled, obey isOpen. Otherwise, only show in dev/test.
+  if (!isExplicit && !import.meta.env.DEV && import.meta.env.MODE !== 'test') {
     return null;
   }
+  if (isExplicit && !isOpen) {
+    return null;
+  }
+
+  const collapsed = isExplicit ? false : internalCollapsed;
+  const toggleCollapse = onToggle || (() => setInternalCollapsed(!internalCollapsed));
 
   const driftMs = Math.round(sync.drift * 1000);
   const offsetMs = Math.round(sync.clockOffset);
@@ -28,7 +37,7 @@ export function SyncDevOverlay({ sync, roomCode }: SyncDevOverlayProps) {
         <span className="font-semibold text-primary uppercase tracking-wider text-[10px]">Sync Debug HUD</span>
         <button
           type="button"
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleCollapse}
           className="text-muted hover:text-text px-1 text-[10px] cursor-pointer"
           title={collapsed ? 'Expand' : 'Collapse'}
         >

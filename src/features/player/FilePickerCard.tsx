@@ -11,7 +11,7 @@ export function FilePickerCard({ onFile, onUrl }: Props) {
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-outline/30 bg-surface-container p-4 sm:p-6 shadow-xs">
+    <div className="flex flex-col gap-3 rounded-2xl border border-outline/30 bg-surface-container p-3 sm:p-4 shadow-xs">
       <label
         onDragOver={(e) => {
           e.preventDefault();
@@ -24,30 +24,32 @@ export function FilePickerCard({ onFile, onUrl }: Props) {
           const file = e.dataTransfer.files?.[0];
           if (file) onFile(file);
         }}
-        className={`group relative flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition select-none ${
+        className={`group relative flex min-h-24 cursor-pointer flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border-2 border-dashed p-3 sm:p-4 text-center sm:text-left transition select-none ${
           isDragging
             ? 'border-primary bg-primary-container/20 scale-[1.01]'
             : 'border-outline/70 bg-surface-container-low hover:border-primary-container/80 hover:bg-surface-container-high'
         } focus-within:border-primary`}
       >
-        <div className="grid size-12 place-items-center rounded-2xl bg-primary-container/20 border border-primary-container/40 text-primary group-hover:scale-110 transition-transform">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            className="size-6"
-            aria-hidden="true"
-          >
-            <path d="M4.5 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-9a3 3 0 0 0-3-3h-15ZM10.5 8.25a.75.75 0 0 1 1.13-.65l5.25 3a.75.75 0 0 1 0 1.3l-5.25 3a.75.75 0 0 1-1.13-.65v-6Z" />
-          </svg>
+        <div className="flex items-center gap-3">
+          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-container/20 border border-primary-container/40 text-primary group-hover:scale-110 transition-transform">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="size-5"
+              aria-hidden="true"
+            >
+              <path d="M4.5 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-9a3 3 0 0 0-3-3h-15ZM10.5 8.25a.75.75 0 0 1 1.13-.65l5.25 3a.75.75 0 0 1 0 1.3l-5.25 3a.75.75 0 0 1-1.13-.65v-6Z" />
+            </svg>
+          </div>
+          <div>
+            <span className="text-sm font-semibold text-text">Pick a video file</span>
+            <p className="text-xs text-muted max-w-sm">
+              MP4 (H.264 + AAC) plays everywhere. Nothing is uploaded.
+            </p>
+          </div>
         </div>
-        <div>
-          <span className="text-base font-semibold text-text">Pick a video file</span>
-          <p className="mt-1 text-xs text-muted max-w-sm">
-            MP4 (H.264 + AAC) plays everywhere. Nothing is uploaded.
-          </p>
-        </div>
-        <span className="rounded-full bg-surface-container-high border border-outline/40 px-3 py-1 text-[11px] font-medium text-muted">
+        <span className="shrink-0 rounded-full bg-surface-container-high border border-outline/40 px-3 py-1 text-[11px] font-medium text-muted">
           Plays locally · 1080p native · Zero server upload
         </span>
         <input
@@ -79,9 +81,9 @@ export function FilePickerCard({ onFile, onUrl }: Props) {
             required
             placeholder="…or paste a direct video link"
             aria-label="Video URL"
-            className="flex-1"
+            className="flex-1 text-xs h-9"
           />
-          <Button type="submit" variant="secondary" className="font-semibold shrink-0">
+          <Button type="submit" variant="secondary" className="font-semibold shrink-0 text-xs h-9">
             Load
           </Button>
         </form>
@@ -90,7 +92,7 @@ export function FilePickerCard({ onFile, onUrl }: Props) {
           type="button"
           variant="secondary"
           onClick={handleSampleVideo}
-          className="w-full sm:w-auto shrink-0 font-semibold text-xs min-h-11"
+          className="w-full sm:w-auto shrink-0 font-semibold text-xs h-9"
           title="Load Blender Big Buck Bunny open movie demo"
         >
           <span>🎬</span>

@@ -106,10 +106,27 @@ function RoomSession({
   const [mobileTab, setMobileTab] = useState<'chat' | 'call' | 'settings'>('chat');
   const [mobileNav, setMobileNav] = useState<'theater' | 'library' | 'chat' | 'settings'>('theater');
   const [isBubbleHidden, setIsBubbleHidden] = useState(false);
+  const [activeNavTab, setActiveNavTab] = useState<'theater' | 'library' | 'synclab' | 'settings'>('theater');
+  const [isSyncLabOpen, setIsSyncLabOpen] = useState(() => import.meta.env.DEV || import.meta.env.MODE === 'test');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.innerWidth < 1024;
   });
+
+  const handleNavTabChange = useCallback((tab: 'theater' | 'library' | 'synclab' | 'settings') => {
+    setActiveNavTab(tab);
+    if (tab === 'settings') {
+      setIsSettingsOpen(true);
+    } else if (tab === 'synclab') {
+      setIsSyncLabOpen((prev) => !prev);
+    } else if (tab === 'library') {
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      fileInput?.click();
+    } else {
+      setIsSettingsOpen(false);
+    }
+  }, []);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -298,7 +315,7 @@ function RoomSession({
   })();
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[1600px] flex-col gap-5 p-3 sm:p-6 lg:p-8 cinema-glow overflow-x-hidden">
+    <main className="mx-auto flex min-h-dvh w-full flex-col cinema-glow overflow-x-hidden">
       <RoomHeader
         isMobile={isMobile}
         roomCode={roomCode}
@@ -318,31 +335,35 @@ function RoomSession({
         isMicOn={call.isMicOn}
         onToggleCam={call.toggleCam}
         onToggleMic={call.toggleMic}
+        activeNavTab={activeNavTab}
+        onNavTabChange={handleNavTabChange}
+        onToggleSyncLab={() => setIsSyncLabOpen((prev) => !prev)}
       />
 
-      {room.error && (
-        <div role="alert" className="flex items-center justify-between rounded-lg border border-danger/40 bg-danger/10 p-3 text-xs text-danger">
-          <span>{room.error}</span>
-          <button
-            type="button"
-            onClick={handleLeave}
-            className="underline font-medium hover:opacity-80 cursor-pointer"
-          >
-            Return to lobby
-          </button>
-        </div>
-      )}
+      <div className="w-full max-w-[1920px] mx-auto px-4 py-3 flex-1 flex flex-col gap-4">
+        {room.error && (
+          <div role="alert" className="flex items-center justify-between rounded-lg border border-danger/40 bg-danger/10 p-3 text-xs text-danger">
+            <span>{room.error}</span>
+            <button
+              type="button"
+              onClick={handleLeave}
+              className="underline font-medium hover:opacity-80 cursor-pointer"
+            >
+              Return to lobby
+            </button>
+          </div>
+        )}
 
-      {room.partnerStatus === 'left' && (
-        <div
-          role="status"
-          className="flex items-center gap-2 rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs text-warn shadow-xs"
-          data-testid="partner-left-banner"
-        >
-          <span className="size-2 rounded-full bg-warn motion-safe:animate-pulse" />
-          <span className="font-semibold">Playback paused (partner disconnected).</span>
-        </div>
-      )}
+        {room.partnerStatus === 'left' && (
+          <div
+            role="status"
+            className="flex items-center gap-2 rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs text-warn shadow-xs"
+            data-testid="partner-left-banner"
+          >
+            <span className="size-2 rounded-full bg-warn motion-safe:animate-pulse" />
+            <span className="font-semibold">Playback paused (partner disconnected).</span>
+          </div>
+        )}
 
       {/* MOBILE THEATER LAYOUT (< 1024px) */}
       {isMobile ? (
@@ -703,13 +724,13 @@ function RoomSession({
       ) : (
         /* DESKTOP 12-COLUMN ASYMMETRIC GRID (>= 1024px) */
         <div
-          className={`grid grid-cols-1 gap-6 items-start ${
+          className={`grid grid-cols-1 gap-4 items-start ${
             !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:grid-cols-12' : ''
           }`}
         >
           {/* Left Stage (9 columns in 12-column layout) */}
           <div
-            className={`relative flex flex-col gap-6 min-w-0 ${
+            className={`relative flex flex-col gap-4 min-w-0 ${
               !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:col-span-9' : 'lg:col-span-12'
             }`}
           >
@@ -769,7 +790,7 @@ function RoomSession({
 
           {/* Desktop Companion Sidebar (3 columns of 12) */}
           {!isTheater && (chat.isOpen || call.connectionState !== 'idle') && (
-            <aside className="lg:col-span-3 flex flex-col gap-4 w-full shrink-0">
+            <aside className="lg:col-span-3 flex flex-col gap-3 w-full shrink-0">
               <Suspense fallback={<div className="flex min-h-24 items-center justify-center text-xs text-muted">Loading call…</div>}>
                 <CallSection
                   call={call}
@@ -779,7 +800,7 @@ function RoomSession({
               </Suspense>
 
               {chat.isOpen && (
-                <div className="h-[520px] w-full">
+                <div className="h-[480px] lg:h-[500px] xl:h-[520px] w-full flex flex-col">
                   <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
                     <ChatView
                       messages={chat.messages}
@@ -797,7 +818,7 @@ function RoomSession({
       )}
 
       {/* Companion Synchronicity Status Strip & Footer */}
-      <footer className="flex flex-col gap-3 border-t border-outline/30 pt-3.5 text-xs text-muted">
+      <footer className="flex flex-col gap-3 border-t border-outline/30 pt-3.5 text-xs text-muted mt-auto">
         <div className="hidden lg:flex items-center justify-between" data-testid="desktop-status-strip">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
@@ -875,7 +896,118 @@ function RoomSession({
         </div>
       </footer>
 
-      <SyncDevOverlay sync={sync} roomCode={roomCode} />
+      <SyncDevOverlay
+        sync={sync}
+        roomCode={roomCode}
+        isOpen={isSyncLabOpen}
+        onToggle={() => setIsSyncLabOpen((prev) => !prev)}
+      />
+    </div>
+
+    {/* Cinema Settings Modal */}
+    {isSettingsOpen && (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cinema-settings-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs animate-fade-in"
+        onClick={() => setIsSettingsOpen(false)}
+      >
+        <div
+          className="relative w-full max-w-md rounded-2xl border border-outline/30 bg-surface-container p-6 shadow-2xl space-y-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-outline/20 pb-3">
+            <h2 id="cinema-settings-modal-title" className="text-base font-bold text-text">
+              Cinema Settings
+            </h2>
+            <button
+              type="button"
+              onClick={() => setIsSettingsOpen(false)}
+              className="grid size-8 place-items-center rounded-full text-muted hover:text-text hover:bg-surface-container-high transition cursor-pointer"
+              aria-label="Close settings"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Theme selection */}
+          <div className="flex items-center justify-between rounded-xl border border-outline/30 bg-surface-container-low p-3 shadow-xs">
+            <div>
+              <span className="text-xs font-bold text-text">Cinema Theme</span>
+              <p className="text-[10px] text-muted">Nocturne Intimacy color palette</p>
+            </div>
+            <ThemePicker />
+          </div>
+
+          {/* Room Share & Invite */}
+          <div className="flex items-center justify-between rounded-xl border border-outline/30 bg-surface-container-low p-3 shadow-xs">
+            <div>
+              <span className="text-xs font-bold text-text">Room Code</span>
+              <p className="text-[11px] text-primary font-mono-sm font-bold">[{roomCode}]</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(roomCode);
+                  showToast('Room code copied');
+                }}
+                className="rounded-full bg-surface-container-high border border-outline/40 px-3 py-1 text-xs text-text hover:text-primary transition cursor-pointer"
+              >
+                Copy Code
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const url = `${window.location.origin}?room=${roomCode}`;
+                  void navigator.clipboard?.writeText(url);
+                  showToast('Invite link copied');
+                }}
+                className="rounded-full bg-primary-container text-on-primary-container px-3 py-1 text-xs font-semibold shadow-xs hover:bg-primary transition cursor-pointer"
+              >
+                Share Link
+              </button>
+            </div>
+          </div>
+
+          {/* Direct WebRTC Mesh info */}
+          <div className="rounded-xl border border-outline/30 bg-surface-container-low p-3 text-xs space-y-2 shadow-xs">
+            <div className="flex justify-between items-center text-muted text-[11px]">
+              <span>Mesh Protocol:</span>
+              <span className="text-tertiary font-semibold flex items-center gap-1">
+                <span className="size-1.5 rounded-full bg-tertiary" />
+                P2P WebRTC Direct
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-muted text-[11px]">
+              <span>Latency Target:</span>
+              <span className="text-text font-mono-sm">&lt; 28ms</span>
+            </div>
+            <div className="flex justify-between items-center text-muted text-[11px]">
+              <span>Audio Channel:</span>
+              <span className="text-text font-mono-sm">48kHz Opus Direct</span>
+            </div>
+            <div className="flex justify-between items-center text-muted text-[11px]">
+              <span>Privacy:</span>
+              <span className="text-primary font-mono-sm">Zero-Knowledge Encrypted</span>
+            </div>
+          </div>
+
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              setIsSettingsOpen(false);
+              void handleLeave();
+            }}
+            className="w-full text-xs font-semibold h-10 mt-1 cursor-pointer"
+          >
+            Leave Cinema Room
+          </Button>
+        </div>
+      </div>
+    )}
 
       {/* Fixed Mobile Bottom Navigation Bar (< 1024px) per Stitch Mobile Design */}
       {isMobile && (

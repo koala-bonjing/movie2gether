@@ -112,10 +112,15 @@ export function useChat({
       if (parsed.from !== selfUserIdRef.current && !isOpenRef.current) {
         setRawUnreadCount((c) => c + 1);
       }
+
+      // Persist received messages locally as well
+      if (persist && roomCode) {
+        saveMessageInDb(roomCode, parsed.from, parsed).catch(() => {});
+      }
     };
 
     channel.on('broadcast', { event: 'chat' }, handleChat);
-  }, [channel]);
+  }, [channel, persist, roomCode]);
 
   const sendMessage = useCallback(
     async (text: string): Promise<boolean> => {

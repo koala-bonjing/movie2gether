@@ -167,7 +167,7 @@ export function PlayerView({
       <div
         ref={setContainer}
         tabIndex={-1}
-        className="group relative aspect-video w-full overflow-hidden rounded-2xl border border-outline/40 bg-black shadow-2xl outline-none"
+        className="group relative aspect-video w-full max-h-[calc(100vh-210px)] overflow-hidden rounded-2xl border border-outline/40 bg-black shadow-2xl outline-none"
       >
         {/* Top/bottom ambient gradients */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/70 via-black/20 to-transparent z-10" />
@@ -507,10 +507,12 @@ export function PlayerView({
             </div>
           )}
 
-          <FilePickerCard
-            onFile={(file) => load({ src: URL.createObjectURL(file), label: file.name, file })}
-            onUrl={(url) => load({ src: url, label: url })}
-          />
+          {!source && (
+            <FilePickerCard
+              onFile={(file) => load({ src: URL.createObjectURL(file), label: file.name, file })}
+              onUrl={(url) => load({ src: url, label: url })}
+            />
+          )}
         </>
       )}
     </section>

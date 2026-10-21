@@ -398,7 +398,7 @@ function getOrCreateMockUserId(): string {
 // -------------------------------------------------------------
 
 const cleanSupabaseUrl = env.VITE_SUPABASE_URL
-  ? env.VITE_SUPABASE_URL.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '')
+  ? env.VITE_SUPABASE_URL.replace(/\/rest\/v1.*$/i, '').replace(/\/+$/, '')
   : undefined;
 const isTestEnv = import.meta.env.MODE === 'test';
 const hasSupabaseConfig = !isTestEnv && Boolean(cleanSupabaseUrl && env.VITE_SUPABASE_ANON_KEY);
@@ -416,7 +416,17 @@ if (hasSupabaseConfig && cleanSupabaseUrl && env.VITE_SUPABASE_ANON_KEY) {
   }
 }
 
-export const isUsingMock = rawSupabase === null;
+export let isUsingMock = rawSupabase === null;
+
+function fallbackToMock(reason?: string) {
+  if (rawSupabase) {
+    if (reason) {
+      console.warn(reason);
+    }
+    rawSupabase = null;
+    isUsingMock = true;
+  }
+}
 
 const mockClient: DuetClient = {
   isMock: true,
@@ -461,11 +471,12 @@ export const supabase: DuetClient = {
       if (rawSupabase) {
         try {
           const res = await rawSupabase.auth.getUser();
-          if (res.data.user) {
+          if (res.data?.user) {
             return { data: { user: { id: res.data.user.id } }, error: null };
           }
-        } catch {
-          // fallback
+          return { data: { user: null }, error: null };
+        } catch (err) {
+          fallbackToMock(`Supabase getUser threw, falling back to mock: ${err}`);
         }
       }
       return mockClient.auth.getUser();
@@ -474,14 +485,34 @@ export const supabase: DuetClient = {
       if (rawSupabase) {
         try {
           const res = await rawSupabase.auth.signInAnonymously();
-          if (res.data.user && !res.error) {
+          if (res.data?.user && !res.error) {
             return { data: { user: { id: res.data.user.id } }, error: null };
           }
-          console.warn('Supabase signInAnonymously failed, falling back to mock:', res.error?.message);
-          rawSupabase = null;
-        } catch (err) {
-          console.warn('Supabase signInAnonymously threw, falling back to mock:', err);
-          rawSupabase = null;
+          const errMsg = res.error?.message || '';
+          const errCode = (res.error as { code?: string })?.code || '';
+          const status = (res.error as { status?: number })?.status;
+          if (
+            errMsg.includes('anonymous_provider_disabled') ||
+            errCode === 'anonymous_provider_disabled' ||
+            status === 422
+          ) {
+            console.warn(
+              'Supabase: please enable Anonymous sign-in under Authentication -> Providers -> Anonymous. Falling back to mock session.',
+            );
+          } else {
+            console.warn('Supabase signInAnonymously failed, falling back to mock:', errMsg || res.error);
+          }
+          fallbackToMock();
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (errMsg.includes('anonymous_provider_disabled')) {
+            console.warn(
+              'Supabase: please enable Anonymous sign-in under Authentication -> Providers -> Anonymous. Falling back to mock session.',
+            );
+          } else {
+            console.warn('Supabase signInAnonymously threw, falling back to mock:', err);
+          }
+          fallbackToMock();
         }
       }
       return mockClient.auth.signInAnonymously();
@@ -490,11 +521,12 @@ export const supabase: DuetClient = {
       if (rawSupabase) {
         try {
           const res = await rawSupabase.auth.getSession();
-          if (res.data.session) {
+          if (res.data?.session) {
             return { data: { session: { user: { id: res.data.session.user.id } } }, error: null };
           }
-        } catch {
-          // fallback
+          return { data: { session: null }, error: null };
+        } catch (err) {
+          fallbackToMock(`Supabase getSession threw, falling back to mock: ${err}`);
         }
       }
       return mockClient.auth.getSession();
@@ -523,11 +555,9 @@ export async function createRoomInDb(code: string, userId: string): Promise<{ su
     try {
       const { error } = await rawSupabase.from('rooms').insert({ code, created_by: userId });
       if (!error) return { success: true };
-      console.warn('Supabase createRoom failed, falling back to local mock:', error.message);
-      rawSupabase = null;
+      fallbackToMock(`Supabase createRoom failed, falling back to local mock: ${error.message}`);
     } catch (err) {
-      console.warn('Supabase createRoom threw, falling back to local mock:', err);
-      rawSupabase = null;
+      fallbackToMock(`Supabase createRoom threw, falling back to local mock: ${err}`);
     }
   }
 
@@ -578,21 +608,21 @@ export async function joinRoomInDb(
         if (error.code === '23503') {
           return { success: false, error: 'Room not found. Please check the room code.' };
         }
-        if (error.message.includes('violates row-level security') || error.code === '42501') {
+        if (error.message?.includes('violates row-level security') || error.code === '42501') {
           return { success: false, error: 'Room is full (max 2 people).' };
         }
+        fallbackToMock(`Supabase joinRoom member insert failed, falling back to local mock: ${error.message}`);
       } else if (roomError) {
-        console.warn('Supabase joinRoom query failed, falling back to local mock:', roomError.message);
-        rawSupabase = null;
+        fallbackToMock(`Supabase joinRoom query failed, falling back to local mock: ${roomError.message}`);
       } else if (!room) {
         const mockRooms = getMockRooms();
         if (!mockRooms[code]) {
           return { success: false, error: 'Room not found. Please check the room code.' };
         }
+        fallbackToMock();
       }
     } catch (err) {
-      console.warn('Supabase joinRoom threw, falling back to local mock:', err);
-      rawSupabase = null;
+      fallbackToMock(`Supabase joinRoom threw, falling back to local mock: ${err}`);
     }
   }
 
@@ -645,6 +675,29 @@ export async function saveMessageInDb(
   userId: string,
   msg: { id: string; text: string; at: number },
 ): Promise<void> {
+  // Always persist to local safeStorage (acts as offline cache & mock persistence)
+  const key = `${STORAGE_KEY_MESSAGES}:${roomCode}`;
+  try {
+    const list: Array<{ id: string; room_code: string; user_id: string; body: string; created_at: string }> =
+      JSON.parse(safeStorage.getItem(key) || '[]');
+    if (!list.some((item) => item.id === msg.id)) {
+      list.push({
+        id: msg.id,
+        room_code: roomCode,
+        user_id: userId,
+        body: msg.text,
+        created_at: new Date(msg.at).toISOString(),
+      });
+      // keep last 100 messages
+      if (list.length > 100) {
+        list.splice(0, list.length - 100);
+      }
+      safeStorage.setItem(key, JSON.stringify(list));
+    }
+  } catch {
+    // ignore
+  }
+
   if (rawSupabase) {
     try {
       await rawSupabase.from('messages').insert({
@@ -657,28 +710,6 @@ export async function saveMessageInDb(
     } catch (err) {
       console.warn('Failed to persist message in DB:', err);
     }
-    return;
-  }
-
-  // Mock persistence in localStorage / memory
-  const key = `${STORAGE_KEY_MESSAGES}:${roomCode}`;
-  try {
-    const list: Array<{ id: string; room_code: string; user_id: string; body: string; created_at: string }> =
-      JSON.parse(safeStorage.getItem(key) || '[]');
-    list.push({
-      id: msg.id,
-      room_code: roomCode,
-      user_id: userId,
-      body: msg.text,
-      created_at: new Date(msg.at).toISOString(),
-    });
-    // keep last 100 messages
-    if (list.length > 100) {
-      list.splice(0, list.length - 100);
-    }
-    safeStorage.setItem(key, JSON.stringify(list));
-  } catch {
-    // ignore
   }
 }
 
@@ -692,19 +723,20 @@ export async function loadMessagesFromDb(roomCode: string): Promise<StoredMessag
         .order('created_at', { ascending: true })
         .limit(100);
 
-      if (error || !data) return [];
-      return data.map((row) => ({
-        id: row.id,
-        from: row.user_id,
-        text: row.body,
-        at: new Date(row.created_at).getTime(),
-      }));
+      if (!error && data && data.length > 0) {
+        return data.map((row) => ({
+          id: row.id,
+          from: row.user_id,
+          text: row.body,
+          at: new Date(row.created_at).getTime(),
+        }));
+      }
     } catch {
-      return [];
+      // fallback to mock retrieval below
     }
   }
 
-  // Mock retrieval
+  // Mock retrieval / local cache fallback
   const key = `${STORAGE_KEY_MESSAGES}:${roomCode}`;
   try {
     const list: Array<{ id: string; room_code: string; user_id: string; body: string; created_at: string }> =
