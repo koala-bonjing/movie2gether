@@ -1,13 +1,17 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes } from 'react';
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'ghost' };
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: 'primary' | 'ghost';
+  size?: 'sm' | 'md';
+};
 
-export function Button({ variant = 'primary', className = '', ...props }: ButtonProps) {
+export function Button({ variant = 'primary', size = 'md', className = '', ...props }: ButtonProps) {
   const look = variant === 'primary' ? 'bg-accent text-bg hover:opacity-90' : 'text-text hover:bg-surface-2';
+  const sizing = size === 'sm' ? 'min-h-9 px-3 text-xs' : 'min-h-11 px-5 font-medium';
   return (
     <button
       type="button"
-      className={`min-h-11 rounded-full px-5 font-medium transition disabled:opacity-50 ${look} ${className}`}
+      className={`rounded-full transition disabled:opacity-50 ${sizing} ${look} ${className}`}
       {...props}
     />
   );
@@ -99,4 +103,5 @@ export function Toast({ message, children, className = '', ...props }: ToastProp
 
 export * from './OtpInput';
 export * from './QualityBadge';
+export * from './PwaInstallPrompt';
 

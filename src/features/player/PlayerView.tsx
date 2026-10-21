@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Button, QualityBadge } from '../../ui';
+import { requestKeepAwake, releaseKeepAwake } from '../../lib/keepAwake';
 import type { VideoStats } from '../call/webrtc';
 import { FilePickerCard } from './FilePickerCard';
 import { PlayerControls } from './PlayerControls';
@@ -107,6 +108,12 @@ export function PlayerView({
     };
   }, [source, meta]);
 
+  useEffect(() => {
+    return () => {
+      void releaseKeepAwake();
+    };
+  }, []);
+
   const load = (next: Source) => {
     setSource(next);
     setMeta(null);
@@ -188,6 +195,9 @@ export function PlayerView({
               }}
               src={source.src}
               playsInline
+              onPlay={() => void requestKeepAwake()}
+              onPause={() => void releaseKeepAwake()}
+              onEnded={() => void releaseKeepAwake()}
               className="size-full object-contain"
               style={{
                 '--sub-font-size': SUBTITLE_FONT_SIZES[subtitleFontSize].px,

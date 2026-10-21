@@ -7,7 +7,7 @@ import { useSync, MediaMismatchDialog, SyncDevOverlay } from '../features/sync';
 import { safeParseRoomModeMsg } from '../features/sync/protocol';
 import { useChat, ChatView } from '../features/chat';
 import { useCall, CallSection, FloatingCamBubble } from '../features/call';
-import { Toast } from '../ui';
+import { Toast, PwaInstallPrompt } from '../ui';
 
 export function App() {
   const [roomCode, setRoomCode] = useState<string | null>(() => {
@@ -55,21 +55,22 @@ export function App() {
     setIsCreator(false);
   };
 
-  if (!roomCode) {
-    return (
-      <main className="mx-auto flex min-h-dvh max-w-5xl flex-col justify-center p-4 sm:p-8">
-        <LobbyView onJoin={handleJoin} />
-      </main>
-    );
-  }
-
   return (
-    <RoomSession
-      roomCode={roomCode}
-      displayName={displayName || 'Anonymous'}
-      isCreator={isCreator}
-      onLeave={handleLeave}
-    />
+    <>
+      {!roomCode ? (
+        <main className="mx-auto flex min-h-dvh max-w-5xl flex-col justify-center p-4 sm:p-8">
+          <LobbyView onJoin={handleJoin} />
+        </main>
+      ) : (
+        <RoomSession
+          roomCode={roomCode}
+          displayName={displayName || 'Anonymous'}
+          isCreator={isCreator}
+          onLeave={handleLeave}
+        />
+      )}
+      <PwaInstallPrompt />
+    </>
   );
 }
 
