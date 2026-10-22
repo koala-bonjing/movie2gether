@@ -110,7 +110,12 @@ export function YouTubePlayerView({
             rel: 0,
             playsinline: 1,
             enablejsapi: 1,
-            origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+            origin:
+              typeof window !== 'undefined' &&
+              window.location.origin.startsWith('https://') &&
+              !window.location.origin.includes('localhost')
+                ? window.location.origin
+                : undefined,
           },
           events: {
             onReady: (event) => {
