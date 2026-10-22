@@ -2,7 +2,6 @@ import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { Button, QualityBadge } from '../../ui';
 import { requestKeepAwake, releaseKeepAwake } from '../../lib/keepAwake';
 import type { VideoStats } from '../call/webrtc';
-import { FilePickerCard } from './FilePickerCard';
 import { PlayerControls } from './PlayerControls';
 import { fingerprint, formatTime, type MediaInfo } from './media';
 import {
@@ -36,6 +35,7 @@ export interface PlayerViewProps {
   lastReaction?: { from: string; emoji: string; time: string } | null;
   actionToasts?: Array<{ id: string; message: string }>;
   onShareScreen?: () => void;
+  isMobile?: boolean;
 }
 
 export function PlayerView({
@@ -56,6 +56,7 @@ export function PlayerView({
   lastReaction,
   actionToasts,
   onShareScreen,
+  isMobile = false,
 }: PlayerViewProps = {}) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
@@ -69,6 +70,11 @@ export function PlayerView({
   const [subtitle, setSubtitle] = useState<SubtitleTrack | null>(null);
   const [subtitlesVisible, setSubtitlesVisible] = useState(true);
   const [subtitleFontSize, setSubtitleFontSize] = useState<SubtitleFontSize>('md');
+
+  // Drag and drop / Direct URL state
+  const [isDragging, setIsDragging] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [directUrl, setDirectUrl] = useState('');
 
   useEffect(() => {
     onVideoRef?.(video);
@@ -167,39 +173,42 @@ export function PlayerView({
       <div
         ref={setContainer}
         tabIndex={-1}
-        className={`group relative aspect-video w-full ${
-          source ? 'max-h-[calc(100vh-230px)]' : 'max-h-[280px] sm:max-h-[320px] lg:max-h-[calc(100vh-380px)]'
-        } overflow-hidden rounded-2xl border border-outline/40 bg-black shadow-2xl outline-none`}
+        className={`group relative w-full ${
+          isTheater
+            ? 'h-[calc(100vh-80px)] max-h-none rounded-none border-none'
+            : 'aspect-video min-h-[300px] sm:min-h-[380px] lg:min-h-[460px] xl:min-h-[540px] max-h-[calc(100vh-150px)] rounded-2xl border border-outline/40 shadow-2xl'
+        } overflow-hidden bg-black outline-none transition-all duration-200`}
       >
         {/* Top/bottom ambient gradients */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/70 via-black/20 to-transparent z-10" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10" />
 
         {/* Quality Badges */}
-        <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 pointer-events-none select-none">
-          <span className="rounded-full bg-black/60 border border-white/10 backdrop-blur-xs px-2.5 py-0.5 text-[10px] font-mono font-medium text-white/90">
-            {meta ? `${meta.height}p` : '1080p WebRip'}
-          </span>
-          <span className="rounded-full bg-black/60 border border-white/10 backdrop-blur-xs px-2 py-0.5 text-[10px] font-mono font-medium text-white/70">
-            H.264
-          </span>
-          {roomCode && (
-            <span className="rounded-full bg-black/60 border border-white/10 backdrop-blur-xs px-2.5 py-0.5 text-[10px] font-mono font-medium text-primary">
-              Room {roomCode}
-            </span>
-          )}
-        </div>
+        {source && (
+          <div className="absolute top-2.5 sm:top-3 left-2.5 sm:left-3 z-20 flex items-center gap-1.5 pointer-events-none select-none">
+            {meta?.height ? (
+              <span className="rounded-full bg-black/60 border border-white/10 backdrop-blur-xs px-2 py-0.5 text-[9px] sm:text-[10px] font-mono font-medium text-white/90">
+                {meta.height}p
+              </span>
+            ) : null}
+            {roomCode && (
+              <span className="rounded-full bg-black/60 border border-white/10 backdrop-blur-xs px-2 py-0.5 text-[9px] sm:text-[10px] font-mono font-medium text-primary">
+                Room {roomCode}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Floating Action Toasts inside 16:9 Video Canvas */}
         {actionToasts && actionToasts.length > 0 && (
-          <div className="absolute top-3 right-3 z-30 flex flex-col gap-2 pointer-events-none" data-testid="player-canvas-toasts">
+          <div className="absolute top-2 sm:top-3 right-2 sm:right-3 z-30 flex flex-col items-end gap-1 pointer-events-none max-w-[60%] sm:max-w-xs" data-testid="player-canvas-toasts">
             {actionToasts.map((toast) => (
               <div
                 key={toast.id}
-                className="pointer-events-auto flex items-center gap-2 rounded-xl border border-white/15 bg-black/80 px-3.5 py-1.5 text-xs font-medium text-white shadow-xl backdrop-blur-md transition-all"
+                className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/85 px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium text-white shadow-lg backdrop-blur-md whitespace-nowrap overflow-hidden text-ellipsis max-w-full"
               >
-                <span className="size-2 rounded-full bg-primary animate-pulse" />
-                <span>{toast.message}</span>
+                <span className="size-1.5 rounded-full bg-primary animate-pulse shrink-0" />
+                <span className="truncate">{toast.message}</span>
               </div>
             ))}
           </div>
@@ -356,114 +365,235 @@ export function PlayerView({
             )}
           </>
         ) : (
-          <div className="grid size-full place-items-center p-4 text-center text-muted select-none">
-            <div className="flex flex-col items-center gap-2">
-              <div className="grid size-11 place-items-center rounded-2xl bg-surface-container-high border border-outline/40 text-primary">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-5.5" aria-hidden="true">
-                  <path d="M4.5 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-9a3 3 0 0 0-3-3h-15ZM10.5 8.25a.75.75 0 0 1 1.13-.65l5.25 3a.75.75 0 0 1 0 1.3l-5.25 3a.75.75 0 0 1-1.13-.65v-6Z" />
-                </svg>
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              const f = e.dataTransfer.files?.[0];
+              if (f) {
+                load({ src: URL.createObjectURL(f), label: f.name, file: f });
+              }
+            }}
+            className={`relative size-full flex flex-col items-center justify-center p-6 bg-surface-container-lowest overflow-hidden select-none transition-all duration-200 ${
+              isDragging
+                ? 'ring-2 ring-primary bg-primary/10'
+                : ''
+            }`}
+          >
+            {/* Ambient cinematic glow */}
+            <div className="absolute inset-0 bg-radial from-primary/10 via-transparent to-black/80 pointer-events-none" />
+
+            {/* Room code indicator at top-right if present */}
+            {roomCode && (
+              <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-surface-container-high/80 border border-outline/30 text-primary font-mono-sm text-[11px] font-bold shadow-sm">
+                Room {roomCode}
               </div>
-              <p className="text-sm font-semibold text-text">Pick a video below to start.</p>
-              <p className="text-[11px] text-muted max-w-xs">Drop a local video file, paste a streaming link, or try the demo video.</p>
+            )}
+
+            {/* Center Cinema File Picker */}
+            <div className="relative z-10 flex flex-col items-center text-center max-w-lg mx-auto">
+              {/* Twin-Ring Cinema Motif */}
+              <div className="mb-3.5 flex size-14 sm:size-16 items-center justify-center rounded-full bg-gradient-to-tr from-[#e8a0bf] via-[#ffd8e6] to-[#f2c57c] p-[2px] shadow-lg">
+                <div className="flex size-full items-center justify-center rounded-full bg-surface-container-lowest text-primary">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="size-7 sm:size-8 translate-x-0.5"
+                    aria-hidden="true"
+                  >
+                    <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                  </svg>
+                </div>
+              </div>
+
+              <h3 className="font-headline-md text-lg sm:text-xl font-bold text-text">
+                {isDragging ? 'Drop video file here' : 'Private Cinema Stage'}
+              </h3>
+              <p className="font-body-md text-xs sm:text-sm text-muted mt-1 max-w-md">
+                Choose or drag &amp; drop a local video (MP4/MKV) to watch together in sync. Files stay private on your device.
+              </p>
+
+              {/* Action Buttons */}
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-container text-on-primary-container font-headline-md text-xs sm:text-sm font-bold shadow-md hover:bg-primary transition active:scale-95">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+                    <path d="M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.955 3.129a.75.75 0 0 0 1.09-1.03l-4.25-4.5a.75.75 0 0 0-1.09 0l-4.25 4.5a.75.75 0 1 0 1.09 1.03L9.25 4.636v8.614Z" />
+                    <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
+                  </svg>
+                  <span>Choose Video File</span>
+                  <input
+                    type="file"
+                    accept="video/*,.mkv"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) load({ src: URL.createObjectURL(file), label: file.name, file });
+                    }}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => setShowUrlInput((prev) => !prev)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-surface-container-high border border-outline/30 text-text font-medium text-xs sm:text-sm hover:bg-surface-variant transition active:scale-95 cursor-pointer shadow-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4 text-muted">
+                    <path d="M12.232 4.232a2.5 2.5 0 0 1 3.536 3.536l-1.225 1.224a.75.75 0 0 0 1.061 1.06l1.224-1.224a4 4 0 0 0-5.656-5.656l-3 3a4 4 0 0 0 .225 5.865.75.75 0 0 0 .977-1.138 2.5 2.5 0 0 1-.142-3.667l3-3Z" />
+                    <path d="M11.603 7.963a.75.75 0 0 0-.977 1.138 2.5 2.5 0 0 1 .142 3.667l-3 3a2.5 2.5 0 0 1-3.536-3.536l1.225-1.224a.75.75 0 0 0-1.061-1.06l-1.224 1.224a4 4 0 1 0 5.656 5.656l3-3a4 4 0 0 0-.225-5.865Z" />
+                  </svg>
+                  <span>Direct URL</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => load({ src: '/sample.mp4', label: 'Big Buck Bunny (Sample)' })}
+                  className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-surface-container-high border border-outline/30 text-muted hover:text-text font-medium text-xs sm:text-sm hover:bg-surface-variant transition active:scale-95 cursor-pointer shadow-sm"
+                  title="Play local sample MP4"
+                >
+                  <span>🎬</span>
+                  <span>Sample</span>
+                </button>
+              </div>
+
+              {/* Inline URL Input */}
+              {showUrlInput && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (directUrl.trim()) {
+                      load({ src: directUrl.trim(), label: directUrl.trim() });
+                    }
+                  }}
+                  className="mt-3 flex w-full max-w-sm items-center gap-1.5 rounded-xl border border-outline/40 bg-surface-container p-1 shadow-sm"
+                >
+                  <input
+                    type="url"
+                    value={directUrl}
+                    onChange={(e) => setDirectUrl(e.target.value)}
+                    placeholder="https://example.com/video.mp4"
+                    autoFocus
+                    className="flex-1 bg-transparent px-3 py-1.5 text-xs text-text placeholder:text-muted/60 focus:outline-hidden"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!directUrl.trim()}
+                    className="rounded-lg bg-primary-container px-3 py-1.5 text-xs font-bold text-on-primary-container hover:bg-primary transition disabled:opacity-40 cursor-pointer"
+                  >
+                    Play
+                  </button>
+                </form>
+              )}
+
+              <span className="mt-3 text-[10px] sm:text-[11px] text-tertiary font-medium">
+                Direct P2P Sync · Zero lag playback · Audio 48kHz
+              </span>
             </div>
           </div>
         )}
       </div>
 
-      {/* When media source is loaded, show compact metadata strip + inline reaction bar */}
-      {source && (
+      {/* Video Metadata Strip & Subtitles Row (Desktop only; on mobile this lives in Call & Media tab) */}
+      {!isStreamMode && !isMobile && (
         <div className="flex flex-col gap-2">
-          {/* Video Metadata & Subtitles Strip */}
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline/30 bg-surface-container px-3.5 py-1.5 text-xs shadow-xs">
-            <div className="flex items-center gap-2 truncate max-w-full sm:max-w-[45%]">
-              <span className="grid size-5 place-items-center rounded-md bg-primary-container/20 text-primary font-bold text-[9px] shrink-0">
-                ▶
-              </span>
-              <span className="font-semibold text-text truncate text-xs">{source.label}</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-muted text-[11px] font-mono-sm">
-              {meta && (
-                <span className="rounded-md bg-surface-container-high px-2 py-0.5 text-text">
-                  {meta.width}×{meta.height} · {formatTime(meta.duration)}
+          {source && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline/30 bg-surface-container px-3.5 py-1.5 text-xs shadow-xs">
+              <div className="flex items-center gap-2 truncate max-w-full sm:max-w-[45%]">
+                <span className="grid size-5 place-items-center rounded-md bg-primary-container/20 text-primary font-bold text-[9px] shrink-0">
+                  ▶
                 </span>
-              )}
-              {source.file && (
-                <span className="rounded-md bg-surface-container-high px-2 py-0.5">
-                  {mb.format(source.file.size / 1e6)}
-                </span>
-              )}
-              {info && (
-                <code title={info.hash} className="rounded-md bg-surface-container-high px-2 py-0.5 text-primary">
-                  {info.hash.slice(0, 10)}
-                </code>
-              )}
-              <div className="flex items-center gap-1.5 border-l border-outline/30 pl-2">
-                {subtitle ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-outline/40 bg-surface-container-low px-2 py-0.5 text-[10px] text-text shadow-xs">
-                    <span className="truncate max-w-[110px] font-mono-sm">{subtitle.label}</span>
-                    <span className="text-[10px] text-primary">({SUBTITLE_FONT_SIZES[subtitleFontSize].label})</span>
-                    <button
-                      type="button"
-                      onClick={() => setSubtitlesVisible((v) => !v)}
-                      className="ml-0.5 text-[10px] font-medium underline hover:text-primary cursor-pointer"
-                    >
-                      {subtitlesVisible ? 'Hide' : 'Show'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClearSubtitles}
-                      className="text-xs text-muted hover:text-error ml-0.5 cursor-pointer"
-                      title="Remove subtitles"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ) : (
-                  <span className="text-muted text-[10px]">None loaded</span>
-                )}
-                <label className="cursor-pointer text-[11px] font-semibold text-primary hover:underline">
-                  <span>{subtitle ? 'Change' : '+ Subtitles'}</span>
-                  <input
-                    type="file"
-                    accept=".srt,.vtt,text/vtt"
-                    className="sr-only"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = '';
-                      if (file) void handleLoadSubtitleFile(file);
-                    }}
-                  />
-                </label>
-                {subtitle && (
-                  <div className="flex items-center gap-0.5 rounded-lg border border-outline/40 bg-surface-container-low p-0.5 text-[9px]">
-                    {(['sm', 'md', 'lg'] as const).map((sz) => (
-                      <button
-                        key={sz}
-                        type="button"
-                        onClick={() => setSubtitleFontSize(sz)}
-                        className={`rounded-md px-1.5 py-0.2 transition cursor-pointer ${
-                          subtitleFontSize === sz
-                            ? 'bg-primary-container font-bold text-on-primary-container shadow-xs'
-                            : 'text-muted hover:text-text'
-                        }`}
-                      >
-                        {sz.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <span className="font-semibold text-text truncate text-xs">{source.label}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setSource(null)}
-                className="rounded-md bg-surface-container-high px-2 py-0.5 text-[11px] font-sans font-medium text-primary hover:bg-surface-variant transition cursor-pointer"
-              >
-                Change file
-              </button>
+              <div className="flex flex-wrap items-center gap-2 text-muted text-[11px] font-mono-sm">
+                {meta && (
+                  <span className="rounded-md bg-surface-container-high px-2 py-0.5 text-text">
+                    {meta.width}×{meta.height} · {formatTime(meta.duration)}
+                  </span>
+                )}
+                {source.file && (
+                  <span className="rounded-md bg-surface-container-high px-2 py-0.5">
+                    {mb.format(source.file.size / 1e6)}
+                  </span>
+                )}
+                {info && (
+                  <code title={info.hash} className="rounded-md bg-surface-container-high px-2 py-0.5 text-primary">
+                    {info.hash.slice(0, 10)}
+                  </code>
+                )}
+                <div className="flex items-center gap-1.5 border-l border-outline/30 pl-2">
+                  {subtitle ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-outline/40 bg-surface-container-low px-2 py-0.5 text-[10px] text-text shadow-xs">
+                      <span className="truncate max-w-[110px] font-mono-sm">{subtitle.label}</span>
+                      <span className="text-[10px] text-primary">({SUBTITLE_FONT_SIZES[subtitleFontSize].label})</span>
+                      <button
+                        type="button"
+                        onClick={() => setSubtitlesVisible((v) => !v)}
+                        className="ml-0.5 text-[10px] font-medium underline hover:text-primary cursor-pointer"
+                      >
+                        {subtitlesVisible ? 'Hide' : 'Show'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearSubtitles}
+                        className="text-xs text-muted hover:text-error ml-0.5 cursor-pointer"
+                        title="Remove subtitles"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="text-muted text-[10px]">None loaded</span>
+                  )}
+                  <label className="cursor-pointer text-[11px] font-semibold text-primary hover:underline">
+                    <span>{subtitle ? 'Change' : '+ Subtitles'}</span>
+                    <input
+                      type="file"
+                      accept=".srt,.vtt,text/vtt"
+                      className="sr-only"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (file) void handleLoadSubtitleFile(file);
+                      }}
+                    />
+                  </label>
+                  {subtitle && (
+                    <div className="flex items-center gap-0.5 rounded-lg border border-outline/40 bg-surface-container-low p-0.5 text-[9px]">
+                      {(['sm', 'md', 'lg'] as const).map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => setSubtitleFontSize(sz)}
+                          className={`rounded-md px-1.5 py-0.2 transition cursor-pointer ${
+                            subtitleFontSize === sz
+                              ? 'bg-primary-container font-bold text-on-primary-container shadow-xs'
+                              : 'text-muted hover:text-text'
+                          }`}
+                        >
+                          {sz.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSource(null)}
+                  className="rounded-md bg-surface-container-high px-2 py-0.5 text-[11px] font-sans font-medium text-primary hover:bg-surface-variant transition cursor-pointer"
+                >
+                  Change file
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Inline Reaction Bar */}
+          {/* Instant Reactions Bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline/30 bg-surface-container-low px-3.5 py-1.5 text-xs shadow-xs">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-text select-none text-[11px]">Instant Reactions:</span>
@@ -481,13 +611,17 @@ export function PlayerView({
                 ))}
               </div>
             </div>
-            {lastReaction && (
-              <div className="flex items-center gap-1.5 text-[11px] text-muted font-medium">
-                <span>{lastReaction.from} sent</span>
-                <span className="text-sm">{lastReaction.emoji}</span>
-                <span className="text-muted/70">{lastReaction.time}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-1.5 text-[11px] text-muted font-medium">
+              {lastReaction ? (
+                <>
+                  <span>{lastReaction.from} sent</span>
+                  <span className="text-sm">{lastReaction.emoji}</span>
+                  <span className="text-muted/70">{lastReaction.time}</span>
+                </>
+              ) : (
+                <span className="text-muted/60">Click emoji to react</span>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -508,14 +642,7 @@ export function PlayerView({
             </button>
           )}
         </div>
-      ) : (
-        !source && (
-          <FilePickerCard
-            onFile={(file) => load({ src: URL.createObjectURL(file), label: file.name, file })}
-            onUrl={(url) => load({ src: url, label: url })}
-          />
-        )
-      )}
+      ) : null}
     </section>
   );
 }

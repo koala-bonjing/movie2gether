@@ -44,9 +44,11 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
   const [channel, setChannel] = useState<DuetChannel | null>(null);
   const isUnmountedRef = useRef(false);
   const hadPartnerRef = useRef(false);
+  const currentUserIdRef = useRef<string | null>(null);
 
   const updatePresence = useCallback((chan: DuetChannel, currentUserId: string) => {
     const state = chan.presenceState<PresencePayload>();
+    const peers: RoomPeer[] = [];
     let foundSelf: RoomPeer | null = null;
     let foundPartner: RoomPeer | null = null;
 
@@ -58,11 +60,25 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
         name: p.name || 'Anonymous',
         joinedAt: p.joinedAt || Date.now(),
       };
+      peers.push(peer);
 
       if (peer.userId === currentUserId) {
         foundSelf = peer;
       } else if (!foundPartner) {
         foundPartner = peer;
+      }
+    }
+
+    // Enforce max 2 participants via Realtime presence: if 2 peers joined before us, room is full
+    const otherPeers = peers.filter((p) => p.userId !== currentUserId);
+    if (foundSelf && otherPeers.length >= 2) {
+      const priorPeers = otherPeers.filter((p) => p.joinedAt <= (foundSelf?.joinedAt ?? Date.now()));
+      if (priorPeers.length >= 2) {
+        if (!isUnmountedRef.current) {
+          setStatus('error');
+          setError('Room is full (max 2 people).');
+        }
+        return;
       }
     }
 
@@ -91,9 +107,24 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
       reconnectTimerRef.current = null;
     }
     const code = roomCode;
-    const uid = self?.userId;
+    const uid = self?.userId || currentUserIdRef.current;
+    if (typeof BroadcastChannel !== 'undefined' && uid) {
+      try {
+        const bc = new BroadcastChannel(`duet:room:${code}`);
+        bc.postMessage({ type: 'peer-leave', userId: uid });
+        bc.close();
+      } catch {
+        // ignore
+      }
+    }
     if (channel) {
       try {
+        await channel.send({
+          type: 'broadcast',
+          event: 'peer-leave',
+          payload: { userId: uid },
+        });
+        await channel.untrack();
         await channel.unsubscribe();
         await supabase.removeChannel(channel);
       } catch (err) {
@@ -133,6 +164,7 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
 
         const userId = await ensureAuth();
         if (!live || isLeavingRef.current) return;
+        currentUserIdRef.current = userId;
 
         setSelf({
           userId,
@@ -187,9 +219,25 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
           updatePresence(currentChannel, userId);
         });
 
-        currentChannel.on('presence', { event: 'leave' }, () => {
+        currentChannel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
           if (!live || !currentChannel) return;
+          if (leftPresences && leftPresences.length > 0) {
+            const partnerLeft = leftPresences.some((p: PresencePayload) => p.userId !== userId);
+            if (partnerLeft) {
+              setPartner(null);
+              setPartnerStatus('left');
+            }
+          }
           updatePresence(currentChannel, userId);
+        });
+
+        currentChannel.on('broadcast', { event: 'peer-leave' }, ({ payload }) => {
+          if (!live) return;
+          const leftUserId = (payload as { userId?: string })?.userId;
+          if (leftUserId && leftUserId !== userId) {
+            setPartner(null);
+            setPartnerStatus('left');
+          }
         });
 
         currentChannel.subscribe(async (subStatus, err) => {
@@ -214,7 +262,13 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
             const delay = computeBackoffDelay(retryCountRef.current);
             retryCountRef.current += 1;
             setStatus('reconnecting');
-            setError(err?.message || `Connection dropped (${subStatus.toLowerCase()}). Retrying in ${(delay / 1000).toFixed(1)}s…`);
+            if (err) console.warn('Supabase Realtime channel status:', subStatus, err);
+            if (retryCountRef.current > 5) {
+              setStatus('error');
+              setError('Unable to maintain connection to cinema room. Please check your internet connection.');
+            } else {
+              setError(null);
+            }
 
             if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
             reconnectTimerRef.current = setTimeout(() => {
@@ -229,7 +283,13 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
         const delay = computeBackoffDelay(retryCountRef.current);
         retryCountRef.current += 1;
         setStatus('reconnecting');
-        setError(err instanceof Error ? err.message : 'Reconnecting...');
+        if (err) console.warn('Supabase connect threw:', err);
+        if (retryCountRef.current > 5) {
+          setStatus('error');
+          setError(err instanceof Error ? err.message : 'Unable to connect to cinema room.');
+        } else {
+          setError(null);
+        }
         if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = setTimeout(() => {
           if (live && !isLeavingRef.current) {
@@ -249,8 +309,46 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
       }
     };
 
+    let localBc: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        localBc = new BroadcastChannel(`duet:room:${roomCode}`);
+        localBc.onmessage = (event) => {
+          if (!live) return;
+          const msg = event.data;
+          if (msg?.type === 'peer-leave' && msg?.userId !== currentUserIdRef.current) {
+            setPartner(null);
+            setPartnerStatus('left');
+          }
+        };
+      } catch {
+        // ignore
+      }
+    }
+
+    const handleUnload = () => {
+      try {
+        const uid = currentUserIdRef.current;
+        if (localBc && uid) {
+          localBc.postMessage({ type: 'peer-leave', userId: uid });
+        }
+        if (currentChannel && uid) {
+          currentChannel.send({
+            type: 'broadcast',
+            event: 'peer-leave',
+            payload: { userId: uid },
+          }).catch(() => {});
+          currentChannel.untrack().catch(() => {});
+        }
+      } catch {
+        // ignore
+      }
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('online', handleOnline);
+      window.addEventListener('beforeunload', handleUnload);
+      window.addEventListener('pagehide', handleUnload);
     }
 
     return () => {
@@ -258,6 +356,12 @@ export function useRoom(roomCode: string, options: UseRoomOptions): UseRoomRetur
       isUnmountedRef.current = true;
       if (typeof window !== 'undefined') {
         window.removeEventListener('online', handleOnline);
+        window.removeEventListener('beforeunload', handleUnload);
+        window.removeEventListener('pagehide', handleUnload);
+      }
+      if (localBc) {
+        localBc.close();
+        localBc = null;
       }
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);

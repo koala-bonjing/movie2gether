@@ -4,10 +4,17 @@ import { z } from 'zod';
 const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((v) => (v === '' ? undefined : v), schema.optional());
 
-// Clean and sanitize Supabase URL (strip any trailing /(rest|auth)/v1.* or slashes)
-const cleanSupabaseUrlString = (val: unknown) => {
+// Clean and sanitize Supabase URL (strip any subpath or trailing slash to guarantee root project origin)
+export const cleanSupabaseUrlString = (val: unknown): string | undefined => {
   if (typeof val !== 'string' || val.trim() === '') return undefined;
-  return val.trim().replace(/\/(rest|auth)\/v1.*$/i, '').replace(/\/+$/, '');
+  const trimmed = val.trim();
+  try {
+    const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(withProto);
+    return parsed.origin;
+  } catch {
+    return trimmed.replace(/\/(rest|auth|realtime)\/v1.*$/i, '').replace(/\/+$/, '');
+  }
 };
 
 const schema = z.object({

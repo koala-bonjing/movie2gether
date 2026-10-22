@@ -137,76 +137,86 @@ export function CallControls({
   }
 
   return (
-    <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-2 p-1 shadow-sm">
-      {/* Microphone toggle */}
+    <div className="w-full bg-surface-container p-2 rounded-full flex items-center justify-around shadow-md border border-outline/30">
+      {/* 1. Microphone toggle */}
       <button
         type="button"
         onClick={handleToggleMic}
         aria-label={isMicOn ? 'Mute microphone' : 'Unmute microphone'}
         data-testid="toggle-mic-btn"
-        className={`grid size-9 place-items-center rounded-full transition active:scale-95 ${
-          isMicOn ? 'text-text hover:bg-white/10' : 'bg-danger text-white'
+        className={`size-11 rounded-full flex items-center justify-center active:scale-90 transition-transform cursor-pointer shadow-xs ${
+          isMicOn ? 'bg-surface-container-high text-tertiary' : 'bg-danger/20 text-danger border border-danger/40'
         }`}
       >
-        {isMicOn ? (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="size-4"
-            aria-hidden="true"
-          >
-            <path d="M7 4a3 3 0 0 1 6 0v6a3 3 0 1 1-6 0V4Z" />
-            <path d="M5.5 9.643a.75.75 0 0 0-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-1.5v-1.546A6.001 6.001 0 0 0 16 10v-.357a.75.75 0 0 0-1.5 0V10a4.5 4.5 0 0 1-9 0v-.357Z" />
-          </svg>
-        ) : (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="size-4"
-            aria-hidden="true"
-          >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className="size-5"
+          aria-hidden="true"
+        >
+          {isMicOn ? (
+            <>
+              <path d="M7 4a3 3 0 0 1 6 0v6a3 3 0 1 1-6 0V4Z" />
+              <path d="M5.5 9.643a.75.75 0 0 0-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-1.5v-1.546A6.001 6.001 0 0 0 16 10v-.357a.75.75 0 0 0-1.5 0V10a4.5 4.5 0 0 1-9 0v-.357Z" />
+            </>
+          ) : (
             <path d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06L15.42 14.36A6.974 6.974 0 0 0 17 9.75a.75.75 0 0 0-1.5 0 5.474 5.474 0 0 1-1.39 3.638L12.5 11.78V4.5a2.5 2.5 0 0 0-5 0v3.25a.75.75 0 0 1-1.5 0V4.5c0-.69.28-1.317.734-1.77L3.28 2.22ZM10 15.5a5.48 5.48 0 0 1-4.5-2.35.75.75 0 0 0-1.22.875A6.98 6.98 0 0 0 9.25 17v1.5a.75.75 0 0 0 1.5 0V17c.56 0 1.1-.065 1.62-.186l-1.34-1.34c-.332.018-.675.026-1.03.026Z" />
-          </svg>
-        )}
+          )}
+        </svg>
       </button>
 
-      {/* Camera toggle */}
+      {/* 2. Camera toggle */}
       <button
         type="button"
         onClick={handleToggleCam}
         disabled={isAudioOnly}
         aria-label={isCamOn ? 'Turn off camera' : 'Turn on camera'}
         data-testid="toggle-cam-btn"
-        className={`grid size-9 place-items-center rounded-full transition active:scale-95 disabled:opacity-30 ${
-          isCamOn ? 'text-text hover:bg-white/10' : 'bg-danger text-white'
+        className={`size-11 rounded-full flex items-center justify-center active:scale-90 transition-transform cursor-pointer shadow-xs disabled:opacity-30 ${
+          isCamOn ? 'bg-surface-container-high text-primary' : 'bg-danger/20 text-danger border border-danger/40'
         }`}
       >
-        {isCamOn ? (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="size-4"
-            aria-hidden="true"
-          >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className="size-5"
+          aria-hidden="true"
+        >
+          {isCamOn ? (
             <path d="M3.25 4A2.25 2.25 0 0 0 1 6.25v7.5A2.25 2.25 0 0 0 3.25 16h7.5A2.25 2.25 0 0 0 13 13.75v-7.5A2.25 2.25 0 0 0 10.75 4h-7.5ZM14.5 7.025v5.95l3.58 2.046a.75.75 0 0 0 1.17-.653V5.632a.75.75 0 0 0-1.17-.653L14.5 7.025Z" />
-          </svg>
-        ) : (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="size-4"
-            aria-hidden="true"
-          >
+          ) : (
             <path d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-1.9-1.9A2.247 2.247 0 0 1 10.75 16h-7.5A2.25 2.25 0 0 1 1 13.75v-7.5c0-.621.252-1.184.66-1.59L3.28 2.22ZM14.5 12.975l3.58 2.046a.75.75 0 0 0 1.17-.653V5.632a.75.75 0 0 0-1.17-.653L14.5 7.025v2.894l-1.5-1.5V6.25A2.25 2.25 0 0 0 10.75 4h-4.38l-1.5-1.5h5.88A3.75 3.75 0 0 1 14.5 6.25v.775Z" />
-          </svg>
-        )}
+          )}
+        </svg>
       </button>
 
-      {/* Desktop-only Screen Share button */}
+      {/* 3. Float/Pop-out camera toggle */}
+      {onToggleFloat && (
+        <button
+          type="button"
+          onClick={onToggleFloat}
+          aria-label={isFloating ? 'Dock camera tile' : 'Float camera tile'}
+          data-testid="toggle-float-cam-btn"
+          title={isFloating ? 'Dock in sidebar' : 'Float camera over screen'}
+          className={`size-11 rounded-full flex items-center justify-center active:scale-90 transition-transform cursor-pointer border ${
+            isFloating
+              ? 'bg-primary-container text-on-primary-container border-primary/40'
+              : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline/20'
+          }`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-5">
+            <path
+              fillRule="evenodd"
+              d="M4.25 2A2.25 2.25 0 0 0 2 4.25v11.5A2.25 2.25 0 0 0 4.25 18h11.5A2.25 2.25 0 0 0 18 15.75V4.25A2.25 2.25 0 0 0 15.75 2H4.25ZM9.75 6.75a.75.75 0 0 0 0 1.5h2.19l-3.72 3.72a.75.75 0 1 0 1.06 1.06l3.72-3.72v2.19a.75.75 0 0 0 1.5 0v-4.5a.75.75 0 0 0-.75-.75h-4.5Z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </button>
+      )}
+
+      {/* Screen share toggle if available */}
       {isScreenShareAvailable && onToggleScreenShare && (
         <button
           type="button"
@@ -214,17 +224,17 @@ export function CallControls({
           aria-label={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
           data-testid="toggle-screenshare-btn"
           title={isScreenSharing ? 'Stop sharing screen' : 'Share screen (1080p30)'}
-          className={`grid size-9 place-items-center rounded-full transition active:scale-95 ${
+          className={`size-11 rounded-full flex items-center justify-center active:scale-90 transition-transform cursor-pointer border ${
             isScreenSharing
-              ? 'bg-accent text-bg shadow-sm'
-              : 'text-text hover:bg-white/10'
+              ? 'bg-primary text-on-primary border-primary shadow-xs'
+              : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline/20'
           }`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 20 20"
             fill="currentColor"
-            className="size-4"
+            className="size-5"
             aria-hidden="true"
           >
             <path
@@ -236,86 +246,55 @@ export function CallControls({
         </button>
       )}
 
-      {/* Float/Dock Toggle Button */}
-      {onToggleFloat && (
-        <button
-          type="button"
-          onClick={onToggleFloat}
-          aria-label={isFloating ? 'Dock camera tile' : 'Float camera tile'}
-          data-testid="toggle-float-cam-btn"
-          title={isFloating ? 'Dock in sidebar' : 'Pop out floating bubble'}
-          className="grid size-9 place-items-center rounded-full text-text hover:bg-white/10 transition active:scale-95"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="size-4 text-muted hover:text-text"
-            aria-hidden="true"
-          >
-            <path
-              fillRule="evenodd"
-              d="M4.25 2A2.25 2.25 0 0 0 2 4.25v11.5A2.25 2.25 0 0 0 4.25 18h11.5A2.25 2.25 0 0 0 18 15.75V4.25A2.25 2.25 0 0 0 15.75 2H4.25ZM9.75 6.75a.75.75 0 0 0 0 1.5h2.19l-3.72 3.72a.75.75 0 1 0 1.06 1.06l3.72-3.72v2.19a.75.75 0 0 0 1.5 0v-4.5a.75.75 0 0 0-.75-.75h-4.5Z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </button>
-      )}
+      {/* Camera switch / Flip */}
+      <button
+        type="button"
+        aria-label="Switch camera angle"
+        title="Flip camera"
+        className="size-11 rounded-full bg-surface-container-low text-on-surface-variant hover:text-on-surface flex items-center justify-center active:scale-90 transition-transform cursor-pointer border border-outline/20"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-5">
+          <path d="M9.75 2.25a.75.75 0 0 0-.75.75v2.25H6.75A2.25 2.25 0 0 0 4.5 7.5v9a2.25 2.25 0 0 0 2.25 2.25h10.5A2.25 2.25 0 0 0 19.5 16.5v-9A2.25 2.25 0 0 0 17.25 5.25h-2.25V3a.75.75 0 0 0-.75-.75h-4.5ZM12 8.25a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
+        </svg>
+      </button>
 
-      {/* Output volume control for remote call audio */}
-      <div className="relative hidden sm:flex items-center group/vol">
-        <button
-          type="button"
-          onClick={() => {
-            const next = vol === 0 ? 1 : 0;
-            setLocalVol(next);
-            onOutputVolumeChange?.(next);
-          }}
-          aria-label={vol === 0 ? 'Unmute partner audio' : 'Mute partner audio'}
-          title="Output volume"
-          className="grid size-9 place-items-center rounded-full text-text hover:bg-white/10 transition active:scale-95 cursor-pointer"
-        >
+      {/* 4. Speakerphone Toggle */}
+      <button
+        type="button"
+        onClick={() => {
+          const next = vol === 0 ? 1 : 0;
+          setLocalVol(next);
+          onOutputVolumeChange?.(next);
+        }}
+        aria-label={vol === 0 ? 'Unmute partner audio' : 'Mute partner audio'}
+        title="Toggle speaker output"
+        className="size-11 rounded-full bg-surface-container-low text-on-surface-variant hover:text-on-surface flex items-center justify-center active:scale-90 transition-transform cursor-pointer border border-outline/20"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-5">
           {vol === 0 ? (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4 text-warn">
-              <path d="M3 9v6h4l5 5V4L7 9z" />
-              <path d="m16 9 3 3m0-3-3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
+            <path d="M3 9v6h4l5 5V4L7 9z" />
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+            <>
               <path d="M3 9v6h4l5 5V4L7 9z" />
               <path d="M14.5 8.5a4 4 0 0 1 0 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-            </svg>
+            </>
           )}
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={vol}
-          onChange={(e) => {
-            const next = Number(e.target.value);
-            setLocalVol(next);
-            onOutputVolumeChange?.(next);
-          }}
-          aria-label="Output volume"
-          className="w-14 accent-primary h-1 bg-surface-container-highest rounded-full cursor-pointer"
-        />
-      </div>
+        </svg>
+      </button>
 
-      {/* End call button */}
+      {/* 5. End Call (Danger Action) */}
       <button
         type="button"
         onClick={onEndCall}
-        aria-label="End call"
+        aria-label="Disconnect call"
         data-testid="end-call-btn"
-        className="grid size-9 place-items-center rounded-full bg-danger text-white transition hover:opacity-90 active:scale-95"
+        className="size-11 rounded-full bg-danger/20 text-danger border border-danger/40 flex items-center justify-center active:scale-90 shadow-sm transition-transform cursor-pointer hover:bg-danger/30"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
           fill="currentColor"
-          className="size-4 rotate-[135deg]"
+          className="size-5 rotate-[135deg]"
           aria-hidden="true"
         >
           <path fillRule="evenodd" d="M1.5 4.5a3 3 0 0 1 3-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 0 1-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 0 0 6.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 0 1 1.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 0 1-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5Z" clipRule="evenodd" />

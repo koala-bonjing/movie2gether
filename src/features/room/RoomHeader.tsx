@@ -1,10 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { Button, StatusDot, QualityBadge, Avatar } from '../../ui';
+import { Button, StatusDot, Avatar } from '../../ui';
 import type { RoomPeer, RoomConnectionStatus, PartnerConnectionStatus } from './useRoom';
-import { isUsingMock, supabase } from '../../lib/supabase';
 import type { VideoStats } from '../call/webrtc';
-
-import { DriftIndicator } from '../sync/DriftIndicator';
 import { ThemePicker } from '../theme';
 
 export interface RoomHeaderProps {
@@ -39,14 +36,7 @@ export function RoomHeader({
   partner,
   partnerStatus = 'waiting',
   drift = 0,
-  onSyncNow,
   onLeave,
-  chatOpen = true,
-  onToggleChat,
-  unreadCount = 0,
-  stats,
-  isStreamMode = false,
-  actions,
   isCamOn = true,
   isMicOn = true,
   onToggleCam,
@@ -83,7 +73,7 @@ export function RoomHeader({
 
   if (isMobile) {
     return (
-      <header className="sticky top-0 z-40 flex items-center justify-between gap-2 border-b border-outline/30 bg-surface/95 px-3 py-2.5 pt-safe backdrop-blur-md shadow-xs">
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-2 border-b border-outline/30 bg-surface/90 h-16 px-3 pt-safe backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.25)]">
         {/* Brand with Twin-Ring Cinema Motif */}
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex size-7 items-center justify-center rounded-full bg-gradient-to-tr from-[#e8a0bf] via-[#ffd8e6] to-[#f2c57c] p-[1.5px] shadow-sm">
@@ -102,35 +92,35 @@ export function RoomHeader({
           <h1 className="text-base font-bold tracking-tight text-text">Duet</h1>
         </div>
 
-        {/* Mobile Partner Status Pill: Sonny (In sync) [CODE] */}
-        <div className="flex items-center gap-1.5 rounded-full border border-outline/40 bg-surface-container px-2.5 py-1 text-xs shadow-xs min-w-0 max-w-[210px]">
+        {/* Mobile Partner Status Pill */}
+        <div className="flex items-center gap-1.5 rounded-full border border-outline/40 bg-surface-container px-2.5 py-1 text-xs shadow-xs shrink min-w-0">
           {status === 'connected' ? (
             partner ? (
-              <div className="flex items-center gap-1 min-w-0 truncate">
+              <div className="flex items-center gap-1 min-w-0">
                 <span className="relative flex size-2 shrink-0">
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-tertiary opacity-75" />
                   <span className="relative inline-flex size-2 rounded-full bg-tertiary" />
                 </span>
-                <span className="font-semibold text-text truncate text-[11px]">{partner.name}</span>
+                <span className="font-semibold text-text truncate max-w-[70px] text-[11px]">{partner.name}</span>
                 <span className="text-[10px] text-tertiary font-medium shrink-0">
                   ({Math.abs(drift) < 0.05 ? 'In sync' : `${Math.round(Math.abs(drift) * 1000)}ms`})
                 </span>
               </div>
             ) : partnerStatus === 'left' ? (
-              <div className="flex items-center gap-1 text-warn text-[11px] font-medium truncate">
+              <div className="flex items-center gap-1 text-warn text-[11px] font-medium shrink-0">
                 <StatusDot status="warn" />
-                <span className="truncate">Partner left</span>
+                <span>Left</span>
               </div>
             ) : (
-              <div className="flex items-center gap-1 text-muted text-[11px] truncate">
+              <div className="flex items-center gap-1 text-muted text-[11px] shrink-0">
                 <StatusDot status="warn" pulse />
-                <span className="truncate">Waiting for partner…</span>
+                <span className="text-warn font-medium">Waiting</span>
               </div>
             )
           ) : (
-            <div className="flex items-center gap-1 text-muted text-[11px] truncate">
+            <div className="flex items-center gap-1 text-muted text-[11px] shrink-0">
               <StatusDot status="muted" pulse />
-              <span className="truncate">Connecting…</span>
+              <span>Connecting</span>
             </div>
           )}
 
@@ -138,37 +128,48 @@ export function RoomHeader({
           <button
             type="button"
             onClick={handleCopy}
-            className="shrink-0 font-mono-sm text-[10px] font-bold text-primary hover:underline ml-0.5 border-l border-outline/40 pl-1.5"
+            className="shrink-0 font-mono-sm text-[10px] font-bold text-primary hover:underline border-l border-outline/40 pl-1.5 cursor-pointer"
             title="Click to copy code"
             aria-label={`Copy room code ${roomCode}`}
           >
-            <span className="text-muted font-normal">Room: </span>
-            <span>[{roomCode}]</span>
+            <span>{copiedKind === 'code' ? 'Copied!' : roomCode}</span>
           </button>
         </div>
 
-        {/* Right actions: Theme & Leave */}
+        {/* Right actions: Leave & Avatar */}
         <div className="flex items-center gap-1.5 shrink-0">
-          <ThemePicker />
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={onLeave}
-            className="text-error hover:bg-error/15 border border-error/30 hover:border-error/50 font-medium text-xs px-2.5 py-1 h-7 cursor-pointer"
+            aria-label="Leave Room"
+            className="size-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-error hover:bg-surface-container transition-colors cursor-pointer"
+            title="Leave Room"
           >
-            Leave
-          </Button>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+              <path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clipRule="evenodd" />
+              <path fillRule="evenodd" d="M19 10a.75.75 0 0 0-.75-.75H8.704l1.048-.943a.75.75 0 1 0-1.004-1.114l-2.5 2.25a.75.75 0 0 0 0 1.114l2.5 2.25a.75.75 0 1 0 1.004-1.114l-1.048-.943h9.546A.75.75 0 0 0 19 10Z" clipRule="evenodd" />
+            </svg>
+          </button>
+          <div className="size-7 rounded-full bg-primary flex items-center justify-center text-on-primary text-xs font-bold shadow-xs">
+            {self?.name ? self.name[0]?.toUpperCase() : 'U'}
+          </div>
         </div>
       </header>
     );
   }
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-outline/30 bg-surface/95 backdrop-blur-md shadow-xs select-none">
+    <header className="fixed top-0 left-0 right-0 z-50 h-12 w-full border-b border-outline/30 bg-surface/90 backdrop-blur-xl shadow-xs select-none">
       {/* Fixed h-12 Header Bar with drag region, branding, center nav tabs, right AV controls */}
-      <div data-tauri-drag-region className="flex h-12 w-full max-w-[1920px] 2xl:max-w-none mx-auto items-center justify-between px-4 sm:px-6">
-        {/* Left: Branding & Room Code Badge */}
+      <div data-tauri-drag-region className="flex h-12 w-full items-center justify-between px-3 sm:px-4 lg:px-6">
+        {/* Left: Window dots + Branding & Room Code Badge */}
         <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full bg-surface-container-highest inline-block" />
+            <span className="size-2.5 rounded-full bg-surface-container-highest inline-block" />
+            <span className="size-2.5 rounded-full bg-surface-container-highest inline-block" />
+          </div>
+
           <div className="flex items-center gap-2">
             <div className="flex size-7 items-center justify-center rounded-full bg-gradient-to-tr from-[#e8a0bf] via-[#ffd8e6] to-[#f2c57c] p-[1.5px] shadow-sm">
               <div className="flex size-full items-center justify-center rounded-full bg-surface-container-lowest text-primary">
@@ -183,23 +184,20 @@ export function RoomHeader({
                 </svg>
               </div>
             </div>
-            <h1 className="text-base font-bold tracking-tight text-text">Duet</h1>
+            <h1 className="text-base font-bold tracking-tight text-primary">Duet</h1>
           </div>
 
           {/* Room Code Badge */}
           <div className="flex items-center gap-1.5 rounded-full border border-outline/40 bg-surface-container-low px-2.5 py-0.5 text-xs shadow-xs">
-            <span className="text-[11px] font-medium text-muted">Room:</span>
+            <span className="text-[11px] font-medium text-muted">Room: [{roomCode}]</span>
             <button
               type="button"
               onClick={handleCopy}
-              className="inline-flex items-center gap-1 font-mono-sm text-xs font-bold text-primary transition hover:underline cursor-pointer"
+              className="p-1 text-muted hover:text-text transition cursor-pointer"
               title="Click to copy room code"
               aria-label={`Copy room code ${roomCode}`}
             >
-              <span>{roomCode}</span>
-              <span className="text-[10px] text-muted">
-                {copiedKind === 'code' ? '✓ Copied' : '⧉'}
-              </span>
+              {copiedKind === 'code' ? '✓' : '⧉'}
             </button>
             <button
               type="button"
@@ -208,8 +206,45 @@ export function RoomHeader({
               title="Copy invite link"
               aria-label="Copy invite link"
             >
-              {copiedKind === 'link' ? '✓ Link copied' : 'Share'}
+              {copiedKind === 'link' ? '✓' : 'Share'}
             </button>
+          </div>
+
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container-low border border-outline/30 text-xs">
+            {status === 'connected' ? (
+              partner ? (
+                <>
+                  <span className="size-2 rounded-full bg-tertiary animate-pulse" />
+                  <span className="font-semibold text-text text-[11px]">{partner.name}</span>
+                  <span className="text-muted font-medium text-[11px]">· In sync</span>
+                </>
+              ) : partnerStatus === 'left' ? (
+                <>
+                  <span className="size-2 rounded-full bg-warn" />
+                  <span className="text-warn font-medium text-[11px]">Partner left</span>
+                </>
+              ) : (
+                <>
+                  <span className="size-2 rounded-full bg-warn motion-safe:animate-pulse" />
+                  <span className="text-muted text-[11px]">Waiting for partner…</span>
+                </>
+              )
+            ) : status === 'reconnecting' ? (
+              <>
+                <span className="size-2 rounded-full bg-warn motion-safe:animate-pulse" />
+                <span className="text-warn text-[11px]">Reconnecting…</span>
+              </>
+            ) : status === 'connecting' ? (
+              <>
+                <span className="size-2 rounded-full bg-muted motion-safe:animate-pulse" />
+                <span className="text-muted text-[11px]">Connecting…</span>
+              </>
+            ) : (
+              <>
+                <span className="size-2 rounded-full bg-danger" />
+                <span className="text-danger text-[11px]">Disconnected</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -286,42 +321,44 @@ export function RoomHeader({
 
         {/* Right: AV controls (mic, cam), Theme toggle, and user avatar */}
         <div className="flex items-center gap-2">
-          {onToggleMic && (
-            <button
-              type="button"
-              onClick={onToggleMic}
-              title={isMicOn ? 'Mute microphone' : 'Unmute microphone'}
-              aria-label={isMicOn ? 'Mute microphone' : 'Unmute microphone'}
-              className={`grid size-8 place-items-center rounded-full border transition active:scale-95 cursor-pointer ${
-                isMicOn
-                  ? 'border-outline/40 bg-surface-container text-text hover:bg-surface-container-high'
-                  : 'border-danger/40 bg-danger/20 text-danger'
-              }`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
-                <path d="M7 4a3 3 0 0 1 6 0v6a3 3 0 1 1-6 0V4Z" />
-                <path d="M5.5 9.643a.75.75 0 0 0-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-1.5v-1.546A6.001 6.001 0 0 0 16 10v-.357a.75.75 0 0 0-1.5 0V10a4.5 4.5 0 0 1-9 0v-.357Z" />
-              </svg>
-            </button>
-          )}
+          <div className="flex items-center gap-1 bg-surface-container-low border border-outline/30 px-1 py-0.5 rounded-lg">
+            {onToggleMic && (
+              <button
+                type="button"
+                onClick={onToggleMic}
+                title={isMicOn ? 'Mute microphone' : 'Unmute microphone'}
+                aria-label={isMicOn ? 'Mute microphone' : 'Unmute microphone'}
+                className={`grid size-7 place-items-center rounded-md transition active:scale-95 cursor-pointer ${
+                  isMicOn
+                    ? 'text-muted hover:text-text hover:bg-surface-container'
+                    : 'bg-danger/20 text-danger'
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
+                  <path d="M7 4a3 3 0 0 1 6 0v6a3 3 0 1 1-6 0V4Z" />
+                  <path d="M5.5 9.643a.75.75 0 0 0-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-1.5v-1.546A6.001 6.001 0 0 0 16 10v-.357a.75.75 0 0 0-1.5 0V10a4.5 4.5 0 0 1-9 0v-.357Z" />
+                </svg>
+              </button>
+            )}
 
-          {onToggleCam && (
-            <button
-              type="button"
-              onClick={onToggleCam}
-              title={isCamOn ? 'Turn off camera' : 'Turn on camera'}
-              aria-label={isCamOn ? 'Turn off camera' : 'Turn on camera'}
-              className={`grid size-8 place-items-center rounded-full border transition active:scale-95 cursor-pointer ${
-                isCamOn
-                  ? 'border-outline/40 bg-surface-container text-text hover:bg-surface-container-high'
-                  : 'border-danger/40 bg-danger/20 text-danger'
-              }`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
-                <path d="M3.25 4A2.25 2.25 0 0 0 1 6.25v7.5A2.25 2.25 0 0 0 3.25 16h7.5A2.25 2.25 0 0 0 13 13.75v-7.5A2.25 2.25 0 0 0 10.75 4h-7.5ZM14.5 7.025v5.95l3.58 2.046a.75.75 0 0 0 1.17-.653V5.632a.75.75 0 0 0-1.17-.653L14.5 7.025Z" />
-              </svg>
-            </button>
-          )}
+            {onToggleCam && (
+              <button
+                type="button"
+                onClick={onToggleCam}
+                title={isCamOn ? 'Turn off camera' : 'Turn on camera'}
+                aria-label={isCamOn ? 'Turn off camera' : 'Turn on camera'}
+                className={`grid size-7 place-items-center rounded-md transition active:scale-95 cursor-pointer ${
+                  isCamOn
+                    ? 'text-muted hover:text-text hover:bg-surface-container'
+                    : 'bg-danger/20 text-danger'
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
+                  <path d="M3.25 4A2.25 2.25 0 0 0 1 6.25v7.5A2.25 2.25 0 0 0 3.25 16h7.5A2.25 2.25 0 0 0 13 13.75v-7.5A2.25 2.25 0 0 0 10.75 4h-7.5ZM14.5 7.025v5.95l3.58 2.046a.75.75 0 0 0 1.17-.653V5.632a.75.75 0 0 0-1.17-.653L14.5 7.025Z" />
+                </svg>
+              </button>
+            )}
+          </div>
 
           <ThemePicker />
 
@@ -331,130 +368,15 @@ export function RoomHeader({
             status={status === 'connected' ? 'online' : 'muted'}
             title={`Logged in as ${self?.name || 'You'}`}
           />
-        </div>
-      </div>
 
-      {/* Top Sync Control Bar: Full-width container */}
-      <div className="w-full border-t border-outline/20 bg-surface-container/60 px-4 sm:px-6 py-1.5">
-        <div className="flex w-full max-w-[1920px] 2xl:max-w-none mx-auto items-center justify-between gap-3 text-xs">
-          {/* Partner presence pill + status chips */}
-          <div className="flex items-center gap-2 min-w-0 flex-nowrap overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-2 rounded-full border border-outline/40 bg-surface-container px-3 py-1 text-xs shadow-xs shrink-0">
-              {status === 'connected' ? (
-                partner ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className="relative flex size-2">
-                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-tertiary opacity-75" />
-                      <span className="relative inline-flex size-2 rounded-full bg-tertiary" />
-                    </span>
-                    <span className="font-semibold text-text">{partner.name}</span>
-                    <span className="text-[11px] text-tertiary">· Connected</span>
-                  </div>
-                ) : partnerStatus === 'left' ? (
-                  <>
-                    <StatusDot status="warn" />
-                    <span className="text-warn font-medium">Partner left</span>
-                  </>
-                ) : (
-                  <>
-                    <StatusDot status="warn" pulse />
-                    <span className="text-muted">Waiting for partner…</span>
-                  </>
-                )
-              ) : status === 'reconnecting' ? (
-                <>
-                  <StatusDot status="warn" pulse label="Reconnecting" />
-                  <span className="text-warn font-medium">Reconnecting…</span>
-                </>
-              ) : status === 'connecting' ? (
-                <>
-                  <StatusDot status="muted" pulse label="Connecting" />
-                  <span className="text-muted">Connecting…</span>
-                </>
-              ) : (
-                <>
-                  <StatusDot status="offline" label="Disconnected" />
-                  <span className="text-error font-medium">Disconnected</span>
-                </>
-              )}
-            </div>
-
-            {partner && onSyncNow && !isStreamMode && (
-              <div className="shrink-0">
-                <DriftIndicator drift={drift} onSyncNow={onSyncNow} />
-              </div>
-            )}
-
-            {(isUsingMock || supabase.isMock) && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-container/15 px-2.5 py-0.5 text-[11px] font-medium text-primary border border-primary-container/30 shrink-0">
-                <span className="size-1.5 rounded-full bg-primary" />
-                Local sync mode
-              </span>
-            )}
-
-            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-surface-container-low border border-outline/30 px-2.5 py-0.5 text-[11px] font-medium text-muted shrink-0">
-              <span className="size-1.5 rounded-full bg-tertiary" />
-              WebRTC P2P Direct
-            </span>
-
-            {isStreamMode && (
-              <span className="flex items-center gap-1.5 rounded-full bg-primary-container/20 px-2.5 py-0.5 text-xs font-semibold text-primary border border-primary-container/40 shadow-xs shrink-0">
-                <span className="size-1.5 rounded-full bg-primary motion-safe:animate-pulse" />
-                Stream Mode
-              </span>
-            )}
-
-            {stats && <div className="shrink-0"><QualityBadge stats={stats} /></div>}
-            {actions}
-          </div>
-
-          {/* Right area: Chat toggle button with unread counter, Leave button */}
-          <div className="flex items-center gap-2 shrink-0">
-            {onToggleChat && (
-              <button
-                type="button"
-                onClick={onToggleChat}
-                aria-label={chatOpen ? 'Hide chat' : 'Show chat'}
-                className={`relative inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition active:scale-95 cursor-pointer ${
-                  chatOpen
-                    ? 'bg-primary-container/20 text-text border-primary-container/50 shadow-xs'
-                    : 'bg-surface-container text-muted border-outline/40 hover:text-text'
-                }`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="size-3.5"
-                  aria-hidden="true"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 2c-2.236 0-4.43.18-6.57.532a2.25 2.25 0 0 0-1.88 2.2V11c0 1.25.98 2.26 2.23 2.3 1.34.04 2.68.12 4.02.24l2.67 2.14a.75.75 0 0 0 1.23-.58v-1.63c1.78-.17 3.52-.45 5.2-.83a2.25 2.25 0 0 0 1.88-2.2V4.732a2.25 2.25 0 0 0-1.88-2.2A49.19 49.19 0 0 0 10 2Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span>Chat</span>
-                {unreadCount > 0 && (
-                  <span
-                    data-testid="chat-unread-badge"
-                    className="rounded-full bg-primary-container px-1.5 py-0.2 text-[10px] font-bold text-on-primary-container leading-tight"
-                  >
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-            )}
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onLeave}
-              className="text-error hover:bg-error/15 border border-error/30 hover:border-error/50 font-medium text-xs px-3 py-1 h-7 cursor-pointer"
-            >
-              Leave
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onLeave}
+            className="text-error hover:bg-error/15 border border-error/30 hover:border-error/50 font-medium text-xs px-2.5 py-1 h-7 cursor-pointer"
+          >
+            Leave
+          </Button>
         </div>
       </div>
     </header>

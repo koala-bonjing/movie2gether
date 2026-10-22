@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Input, OtpInput, Avatar } from '../../ui';
+import { Input, OtpInput } from '../../ui';
 import {
   generateRoomCode,
   getStoredDisplayName,
@@ -64,35 +64,77 @@ export function LobbyView({ onJoin, error, isConnecting = false }: LobbyViewProp
   const displayError = localError || error;
 
   return (
-    <div className="flex w-full flex-col items-center justify-center py-6 sm:py-12">
-      {/* Stitch Lobby Screen: Card Container */}
-      <div className="relative w-full max-w-[440px] rounded-2xl bg-surface-container-low p-[36px] shadow-2xl overflow-hidden border border-outline/30">
-        {/* Crown Glow Rim Accent */}
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#e8a0bf]/40 to-transparent" />
+    <div className="relative flex w-full flex-col items-center justify-center py-6 sm:py-12 select-none">
+      {/* Subtle Cinematic Atmospheric Backdrop Blooms */}
+      <div className="absolute -top-32 w-96 h-96 rounded-full bg-primary-container/10 blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 w-80 h-80 rounded-full bg-secondary/5 blur-3xl pointer-events-none" />
 
-        <div className="absolute top-5 right-5">
-          <ThemePicker />
-        </div>
+      {/* Primary Lobby Container (Max-W 440px) */}
+      <div className="relative z-10 flex w-full max-w-[440px] flex-col items-center">
+        {/* Mobile Header Bar (< sm) per Stitch Mobile Design */}
+        <header className="flex sm:hidden w-full items-center justify-between py-2 px-1 mb-2">
+          <div className="flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-tr from-[#e8a0bf] via-[#ffd8e6] to-[#f2c57c] p-[1.5px] shadow-sm">
+              <div className="flex size-full items-center justify-center rounded-lg bg-surface-container-lowest text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-4" aria-hidden="true">
+                  <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                </svg>
+              </div>
+            </div>
+            <span className="font-headline-md text-base text-on-surface tracking-tight">Duet</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-high border border-outline/30">
+            <span className="size-2 rounded-full bg-tertiary animate-pulse" />
+            <span className="text-[11px] text-tertiary font-medium">P2P Ready</span>
+          </div>
+        </header>
 
-        {/* Brand Header */}
-        <header className="mb-6 flex flex-col items-center text-center">
-          {/* Twin-Ring Cinema Motif */}
-          <div className="mb-3.5 flex size-[44px] items-center justify-center rounded-full bg-gradient-to-tr from-[#e8a0bf] via-[#ffd8e6] to-[#f2c57c] p-[1.5px] shadow-lg">
-            <div className="flex size-full items-center justify-center rounded-full bg-surface-container-lowest text-primary">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="size-5 translate-x-0.5"
-                aria-hidden="true"
-              >
-                <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-              </svg>
+        {/* Mobile Warm Atmospheric Story / Visual Card (< sm) */}
+        <div className="flex sm:hidden w-full mb-4 bg-surface-container-low rounded-2xl p-4 flex-col relative overflow-hidden border border-outline/30 shadow-lg">
+          <div className="w-full h-28 rounded-xl bg-surface-container-lowest relative overflow-hidden flex items-center justify-center mb-3">
+            <div className="absolute inset-0 bg-gradient-to-t from-surface-container-lowest via-transparent to-transparent z-10" />
+            <div className="w-full h-full bg-gradient-to-br from-[#e8a0bf]/20 via-[#211e27] to-[#ecc077]/15 opacity-70" />
+            <div className="absolute bottom-2 left-2 z-20 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-dim/90 backdrop-blur-md border border-outline/30">
+              <span className="text-primary text-xs">♥</span>
+              <span className="text-[10px] text-on-surface-variant font-medium">Zero lag · 2 seats</span>
             </div>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-text sm:text-3xl">Duet</h2>
-          <p className="mt-1 text-sm text-muted">A private cinema for two.</p>
-        </header>
+          <h1 className="text-base font-bold text-on-surface leading-tight text-center">
+            Watch together, just the two of you.
+          </h1>
+          <p className="text-xs text-on-surface-variant text-center mt-1">
+            A private synchronized cinema for long-distance partners and best friends.
+          </p>
+        </div>
+
+        {/* Lobby Card */}
+        <div className="relative w-full rounded-2xl bg-surface-container-low p-6 sm:p-[36px] shadow-2xl overflow-hidden border border-outline/30 flex flex-col">
+          {/* Crown Glow Rim Accent */}
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-container/40 to-transparent" />
+
+          <div className="absolute top-4 right-4 sm:top-5 sm:right-5">
+            <ThemePicker />
+          </div>
+
+          {/* Desktop Brand Header (>= sm) */}
+          <header className="hidden sm:flex mb-6 flex-col items-center text-center">
+            {/* Twin-Ring Cinema Motif */}
+            <div className="mb-3.5 flex size-[44px] items-center justify-center rounded-full bg-gradient-to-tr from-[#e8a0bf] via-[#ffd8e6] to-[#f2c57c] p-[1.5px] shadow-lg">
+              <div className="flex size-full items-center justify-center rounded-full bg-surface-container-lowest text-primary">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="size-5 translate-x-0.5"
+                  aria-hidden="true"
+                >
+                  <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                </svg>
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold tracking-tight text-text sm:text-3xl">Duet</h2>
+            <p className="mt-1 text-sm text-muted">A private cinema for two.</p>
+          </header>
 
         {displayError && (
           <div
@@ -127,8 +169,7 @@ export function LobbyView({ onJoin, error, isConnecting = false }: LobbyViewProp
                 </span>
               )}
             </div>
-            <div className="relative flex items-center gap-2.5">
-              <Avatar name={displayName} size="lg" aria-hidden="true" />
+            <div className="relative w-full flex items-center">
               <Input
                 id="display-name"
                 type="text"
@@ -138,7 +179,9 @@ export function LobbyView({ onJoin, error, isConnecting = false }: LobbyViewProp
                 disabled={isConnecting}
                 onChange={(e) => handleNameChange(e.target.value)}
                 autoFocus={!displayName}
+                className="w-full pr-10 bg-surface-container border border-outline/30 focus:border-primary-container"
               />
+              <span className="absolute right-3.5 flex size-2 rounded-full bg-tertiary animate-pulse" title="Ready to broadcast" />
             </div>
           </div>
 
@@ -148,26 +191,32 @@ export function LobbyView({ onJoin, error, isConnecting = false }: LobbyViewProp
               type="button"
               onClick={handleCreateRoom}
               disabled={isConnecting}
-              className="flex h-12 w-full cursor-pointer items-center justify-center gap-2.5 rounded-lg bg-primary-container font-headline-md text-on-primary-container shadow-md transition hover:bg-primary active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
+              className="group flex h-12 w-full cursor-pointer items-center justify-between px-4 sm:justify-center sm:gap-2.5 rounded-xl bg-primary-container font-headline-md text-on-primary-container shadow-md transition hover:bg-primary active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="size-5"
-                aria-hidden="true"
-              >
-                <path d="M4.5 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-9a3 3 0 0 0-3-3h-15ZM3 7.5a1.5 1.5 0 0 1 1.5-1.5h15a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16.5v-9Zm6 2.25a.75.75 0 0 1 1.13-.65l5.25 3a.75.75 0 0 1 0 1.3l-5.25 3A.75.75 0 0 1 9 15.75v-6Z" />
-              </svg>
-              <span>{isConnecting ? 'Setting up room…' : 'Create a Room'}</span>
+              <div className="flex items-center gap-2.5">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="size-5 shrink-0 transition-transform group-hover:rotate-12"
+                  aria-hidden="true"
+                >
+                  <path d="M4.5 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-9a3 3 0 0 0-3-3h-15ZM3 7.5a1.5 1.5 0 0 1 1.5-1.5h15a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16.5v-9Zm6 2.25a.75.75 0 0 1 1.13-.65l5.25 3a.75.75 0 0 1 0 1.3l-5.25 3A.75.75 0 0 1 9 15.75v-6Z" />
+                </svg>
+                <div className="flex flex-col text-left sm:flex-row sm:items-center">
+                  <span className="font-bold">{isConnecting ? 'Setting up room…' : 'Create a Room'}</span>
+                  <span className="sm:hidden text-[10px] text-on-primary-container/70 font-normal">Start clean &amp; invite your partner</span>
+                </div>
+              </div>
+              <span className="sm:hidden text-on-primary-container font-bold">→</span>
             </button>
           </div>
 
-          {/* Divider: OR ENTER CODE */}
+          {/* Divider: OR ENTER 6-DIGIT CODE */}
           <div className="flex items-center gap-3 pt-2">
             <div className="h-px flex-1 bg-outline/40" />
-            <span className="font-mono-sm text-xs font-semibold uppercase tracking-widest text-outline select-none">
-              OR ENTER CODE
+            <span className="font-mono-sm text-[11px] font-semibold uppercase tracking-widest text-outline select-none">
+              OR ENTER 6-DIGIT CODE
             </span>
             <div className="h-px flex-1 bg-outline/40" />
           </div>
@@ -204,9 +253,13 @@ export function LobbyView({ onJoin, error, isConnecting = false }: LobbyViewProp
             <button
               type="submit"
               disabled={isConnecting || joinCode.length !== 6}
-              className="flex h-12 w-full cursor-pointer items-center justify-center rounded-lg border border-outline/40 bg-surface-container font-headline-md text-on-surface shadow-sm transition hover:bg-surface-variant active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40"
+              className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-outline/40 bg-surface-container font-headline-md text-on-surface shadow-sm transition hover:bg-surface-variant active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40"
             >
-              {isConnecting ? 'Joining room…' : 'Join Room'}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4 text-on-surface-variant">
+                <path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M19 10a.75.75 0 0 0-.75-.75H8.704l1.048-.943a.75.75 0 1 0-1.004-1.114l-2.5 2.25a.75.75 0 0 0 0 1.114l2.5 2.25a.75.75 0 1 0 1.004-1.114l-1.048-.943h9.546A.75.75 0 0 0 19 10Z" clipRule="evenodd" />
+              </svg>
+              <span>{isConnecting ? 'Joining room…' : 'Join Room'}</span>
             </button>
           </form>
 
@@ -240,6 +293,7 @@ export function LobbyView({ onJoin, error, isConnecting = false }: LobbyViewProp
           )}
         </div>
       </div>
+    </div>
 
       {/* Footer */}
       <footer className="mt-8 flex items-center justify-center gap-2 text-center text-xs text-muted max-w-md px-4">

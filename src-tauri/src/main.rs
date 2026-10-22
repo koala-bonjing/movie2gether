@@ -6,7 +6,7 @@ fn main() {
   #[cfg(windows)]
   {
     let current_args = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
-    let media_args = "--enable-features=msEdgePermissionPrompt --autoplay-policy=no-user-gesture-required";
+    let media_args = "--enable-features=msEdgePermissionPrompt --autoplay-policy=no-user-gesture-required --disable-features=msEdgeServiceWorkerCache";
     let combined = if current_args.is_empty() {
       media_args.to_string()
     } else {

@@ -9,6 +9,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: false,
       includeAssets: ['favicon.svg', 'icons/*.png', 'icons/*.svg'],
       manifest: {
         name: 'Duet — Watch Together',

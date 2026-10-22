@@ -1,5 +1,5 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
-import { env } from './env';
+import { env, cleanSupabaseUrlString } from './env';
 
 export interface PresencePayload {
   userId: string;
@@ -398,7 +398,7 @@ function getOrCreateMockUserId(): string {
 // -------------------------------------------------------------
 
 const cleanSupabaseUrl = env.VITE_SUPABASE_URL
-  ? env.VITE_SUPABASE_URL.replace(/\/(rest|auth)\/v1.*$/i, '').replace(/\/+$/, '')
+  ? cleanSupabaseUrlString(env.VITE_SUPABASE_URL)
   : undefined;
 const isTestEnv = import.meta.env.MODE === 'test';
 const hasSupabaseConfig = !isTestEnv && Boolean(cleanSupabaseUrl && env.VITE_SUPABASE_ANON_KEY);
@@ -408,7 +408,11 @@ let rawSupabase: SupabaseClient | null = null;
 if (hasSupabaseConfig && cleanSupabaseUrl && env.VITE_SUPABASE_ANON_KEY) {
   try {
     rawSupabase = createClient(cleanSupabaseUrl, env.VITE_SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true },
+      auth: {
+        storage: typeof window !== 'undefined' ? window.sessionStorage : undefined,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
     });
   } catch (err) {
     console.warn('Failed to initialize Supabase client, falling back to mock:', err);
@@ -416,17 +420,8 @@ if (hasSupabaseConfig && cleanSupabaseUrl && env.VITE_SUPABASE_ANON_KEY) {
   }
 }
 
-export let isUsingMock = rawSupabase === null;
+export const isUsingMock = rawSupabase === null;
 
-function fallbackToMock(reason?: string) {
-  if (rawSupabase) {
-    if (reason) {
-      console.warn(reason);
-    }
-    rawSupabase = null;
-    isUsingMock = true;
-  }
-}
 
 const mockClient: DuetClient = {
   isMock: true,
@@ -475,8 +470,8 @@ export const supabase: DuetClient = {
             return { data: { user: { id: res.data.user.id } }, error: null };
           }
           return { data: { user: null }, error: null };
-        } catch (err) {
-          fallbackToMock(`Supabase getUser threw, falling back to mock: ${err}`);
+        } catch {
+          return { data: { user: null }, error: null };
         }
       }
       return mockClient.auth.getUser();
@@ -488,31 +483,9 @@ export const supabase: DuetClient = {
           if (res.data?.user && !res.error) {
             return { data: { user: { id: res.data.user.id } }, error: null };
           }
-          const errMsg = res.error?.message || '';
-          const errCode = (res.error as { code?: string })?.code || '';
-          const status = (res.error as { status?: number })?.status;
-          if (
-            errMsg.includes('anonymous_provider_disabled') ||
-            errCode === 'anonymous_provider_disabled' ||
-            status === 422
-          ) {
-            console.warn(
-              'Supabase: please enable Anonymous sign-in under Authentication -> Providers -> Anonymous. Falling back to mock session.',
-            );
-          } else {
-            console.warn('Supabase signInAnonymously failed, falling back to mock:', errMsg || res.error);
-          }
-          fallbackToMock();
+          console.warn('Supabase signInAnonymously error:', res.error?.message);
         } catch (err: unknown) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          if (errMsg.includes('anonymous_provider_disabled')) {
-            console.warn(
-              'Supabase: please enable Anonymous sign-in under Authentication -> Providers -> Anonymous. Falling back to mock session.',
-            );
-          } else {
-            console.warn('Supabase signInAnonymously threw, falling back to mock:', err);
-          }
-          fallbackToMock();
+          console.warn('Supabase signInAnonymously threw:', err);
         }
       }
       return mockClient.auth.signInAnonymously();
@@ -521,12 +494,12 @@ export const supabase: DuetClient = {
       if (rawSupabase) {
         try {
           const res = await rawSupabase.auth.getSession();
-          if (res.data?.session) {
+          if (res.data?.session?.user) {
             return { data: { session: { user: { id: res.data.session.user.id } } }, error: null };
           }
           return { data: { session: null }, error: null };
-        } catch (err) {
-          fallbackToMock(`Supabase getSession threw, falling back to mock: ${err}`);
+        } catch {
+          return { data: { session: null }, error: null };
         }
       }
       return mockClient.auth.getSession();
@@ -539,31 +512,55 @@ export const supabase: DuetClient = {
 // -------------------------------------------------------------
 
 export async function ensureAuth(): Promise<string> {
-  const { data: userData } = await supabase.auth.getUser();
-  if (userData?.user?.id) {
-    return userData.user.id;
+  if (rawSupabase) {
+    try {
+      const { data: sessionData } = await rawSupabase.auth.getSession();
+      if (sessionData?.session?.user?.id) {
+        return sessionData.session.user.id;
+      }
+    } catch {
+      // session missing
+    }
+
+    try {
+      const { data: authData, error: authError } = await rawSupabase.auth.signInAnonymously();
+      if (!authError && authData?.user?.id) {
+        return authData.user.id;
+      }
+      if (authError) {
+        console.warn('Supabase anonymous sign-in error:', authError.message);
+      }
+    } catch (err) {
+      console.warn('Supabase anonymous sign-in threw:', err);
+    }
   }
-  const { data, error } = await supabase.auth.signInAnonymously();
-  if (error || !data?.user?.id) {
-    return getOrCreateMockUserId();
-  }
-  return data.user.id;
+
+  // Fallback for offline or unit tests
+  return getOrCreateMockUserId();
 }
 
 export async function createRoomInDb(code: string, userId: string): Promise<{ success: boolean; error?: string }> {
   if (rawSupabase) {
     try {
       const { error } = await rawSupabase.from('rooms').insert({ code, created_by: userId });
-      if (!error) return { success: true };
-      fallbackToMock(`Supabase createRoom failed, falling back to local mock: ${error.message}`);
-    } catch (err) {
-      fallbackToMock(`Supabase createRoom threw, falling back to local mock: ${err}`);
+      if (!error || error.code === '23505') {
+        const rooms = getMockRooms();
+        rooms[code] = { code, created_by: userId, created_at: new Date().toISOString() };
+        saveMockRooms(rooms);
+        return { success: true };
+      }
+      console.error(`Supabase createRoom DB insert error [${error.code}]: ${error.message}`);
+      return { success: false, error: `Failed to create room: ${error.message}` };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`Supabase createRoom DB insert threw:`, err);
+      return { success: false, error: `Failed to create room: ${msg}` };
     }
   }
 
-  // Mock implementation
+  // Local/mock tracking
   const rooms = getMockRooms();
-  if (rooms[code]) {
+  if (!rawSupabase && rooms[code]) {
     return { success: false, error: 'Room code already exists' };
   }
   rooms[code] = { code, created_by: userId, created_at: new Date().toISOString() };
@@ -596,6 +593,16 @@ export async function joinRoomInDb(
           return { success: true };
         }
 
+        // Check member count
+        const { count, error: countError } = await rawSupabase
+          .from('room_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('room_code', code);
+
+        if (!countError && typeof count === 'number' && count >= 2) {
+          return { success: false, error: 'Room is full (max 2 people).' };
+        }
+
         // Insert membership
         const { error } = await rawSupabase.from('room_members').insert({
           room_code: code,
@@ -608,25 +615,43 @@ export async function joinRoomInDb(
         if (error.code === '23503') {
           return { success: false, error: 'Room not found. Please check the room code.' };
         }
-        if (error.message?.includes('violates row-level security') || error.code === '42501') {
+        if (error.message?.includes('member_count') || (!countError && typeof count === 'number' && count >= 2)) {
           return { success: false, error: 'Room is full (max 2 people).' };
         }
-        fallbackToMock(`Supabase joinRoom member insert failed, falling back to local mock: ${error.message}`);
-      } else if (roomError) {
-        fallbackToMock(`Supabase joinRoom query failed, falling back to local mock: ${roomError.message}`);
-      } else if (!room) {
+        console.warn('Supabase joinRoom member insert skipped (Realtime presence will govern room):', error.message);
+      } else if (!roomError && !room) {
         const mockRooms = getMockRooms();
         if (!mockRooms[code]) {
           return { success: false, error: 'Room not found. Please check the room code.' };
         }
-        fallbackToMock();
+      } else if (roomError) {
+        console.warn('Supabase joinRoom query warning:', roomError.message);
       }
     } catch (err) {
-      fallbackToMock(`Supabase joinRoom threw, falling back to local mock: ${err}`);
+      console.warn('Supabase joinRoom threw:', err);
     }
+
+    // Update local membership tracking
+    const members = getMockMembers();
+    const roomMembers = members.filter((m) => m.room_code === code);
+    const existing = roomMembers.find((m) => m.user_id === userId);
+    if (!existing) {
+      if (roomMembers.length >= 2) {
+        return { success: false, error: 'Room is full (max 2 people).' };
+      }
+      members.push({
+        room_code: code,
+        user_id: userId,
+        display_name: displayName,
+        joined_at: new Date().toISOString(),
+      });
+      saveMockMembers(members);
+    }
+
+    return { success: true };
   }
 
-  // Mock implementation
+  // Mock implementation for test / offline
   const rooms = getMockRooms();
   if (!rooms[code]) {
     return { success: false, error: 'Room not found. Please check the room code.' };
@@ -651,6 +676,7 @@ export async function joinRoomInDb(
   }
   return { success: true };
 }
+
 
 export async function leaveRoomInDb(code: string, userId: string): Promise<void> {
   if (rawSupabase) {
