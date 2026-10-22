@@ -1,5 +1,6 @@
 export { PlayerView } from './PlayerView';
-export { fingerprint, mediaMismatch, type MediaInfo } from './media';
+export { YouTubePlayerView } from './YouTubePlayerView';
+export { fingerprint, mediaMismatch, parseVideoSource, type MediaInfo, type ParsedVideoSource } from './media';
 export {
   SUBTITLE_FONT_SIZES,
   type SubtitleTrack,

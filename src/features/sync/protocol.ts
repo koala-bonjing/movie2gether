@@ -36,6 +36,8 @@ export const MediaMsgSchema = z.object({
   size: z.number().nonnegative(),
   duration: z.number(),
   hash: z.string(),
+  url: z.string().optional(),
+  mediaType: z.enum(['file', 'direct', 'youtube']).optional(),
 });
 export type MediaMsg = z.infer<typeof MediaMsgSchema>;
 

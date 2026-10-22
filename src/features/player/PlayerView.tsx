@@ -3,7 +3,10 @@ import { Button, QualityBadge } from '../../ui';
 import { requestKeepAwake, releaseKeepAwake } from '../../lib/keepAwake';
 import type { VideoStats } from '../call/webrtc';
 import { PlayerControls } from './PlayerControls';
-import { fingerprint, formatTime, type MediaInfo } from './media';
+import { fingerprint, formatTime, parseVideoSource, type MediaInfo } from './media';
+import { YouTubePlayerView } from './YouTubePlayerView';
+import type { DuetChannel } from '../../lib/supabase';
+import type { MediaMsg } from '../sync/protocol';
 import {
   SUBTITLE_FONT_SIZES,
   type SubtitleTrack,
@@ -12,7 +15,13 @@ import {
 
 const StreamPlayerView = lazy(() => import('./StreamPlayerView'));
 
-type Source = { src: string; label: string; file?: File };
+type Source = {
+  src: string;
+  label: string;
+  file?: File;
+  mediaType?: 'file' | 'direct' | 'youtube';
+  videoId?: string;
+};
 type Meta = { duration: number; width: number; height: number };
 
 const mb = new Intl.NumberFormat(undefined, { style: 'unit', unit: 'megabyte', maximumFractionDigits: 1 });
@@ -20,6 +29,9 @@ const mb = new Intl.NumberFormat(undefined, { style: 'unit', unit: 'megabyte', m
 export interface PlayerViewProps {
   onVideoRef?: (el: HTMLVideoElement | null) => void;
   onMediaInfo?: (info: MediaInfo | null) => void;
+  channel?: DuetChannel | null;
+  selfUserId?: string | null;
+  partnerMedia?: MediaMsg | null;
   partnerBuffering?: boolean;
   isStreamMode?: boolean;
   streamSource?: MediaStream | null;
@@ -41,6 +53,9 @@ export interface PlayerViewProps {
 export function PlayerView({
   onVideoRef,
   onMediaInfo,
+  channel,
+  selfUserId,
+  partnerMedia,
   partnerBuffering = false,
   isStreamMode = false,
   streamSource = null,
@@ -83,6 +98,29 @@ export function PlayerView({
   useEffect(() => {
     onMediaInfo?.(info);
   }, [info, onMediaInfo]);
+
+  // Auto-mount partner's media URL (Direct or YouTube) if local player has no media loaded
+  useEffect(() => {
+    if (!source && partnerMedia?.url) {
+      const parsed = parseVideoSource(partnerMedia.url);
+      if (parsed) {
+        if (parsed.type === 'youtube') {
+          setSource({
+            src: parsed.url,
+            label: partnerMedia.name || parsed.label,
+            mediaType: 'youtube',
+            videoId: parsed.videoId,
+          });
+        } else {
+          setSource({
+            src: parsed.url,
+            label: partnerMedia.name || parsed.label,
+            mediaType: 'direct',
+          });
+        }
+      }
+    }
+  }, [partnerMedia, source]);
 
   // Revoke the previous object URL when the source changes, and the current one on unmount.
   useEffect(
@@ -252,6 +290,26 @@ export function PlayerView({
               </div>
             </div>
           )
+        ) : source?.mediaType === 'youtube' && source.videoId ? (
+          <YouTubePlayerView
+            videoId={source.videoId}
+            channel={channel}
+            selfUserId={selfUserId}
+            roomCode={roomCode}
+            actionToasts={actionToasts}
+            isTheater={isTheater}
+            onDuration={(d) => {
+              setMeta({ duration: d, width: 1920, height: 1080 });
+              setInfo({
+                name: source.label,
+                size: 0,
+                duration: d,
+                hash: `yt:${source.videoId}`,
+                url: source.src,
+                mediaType: 'youtube',
+              });
+            }}
+          />
         ) : source ? (
           <>
             <video
@@ -273,6 +331,15 @@ export function PlayerView({
                 setMeta({ duration: v.duration, width: v.videoWidth, height: v.videoHeight });
                 if (!v.videoWidth) {
                   setError("We can hear audio, but this browser cannot display the video stream.");
+                } else if (!source.file && source.src) {
+                  setInfo({
+                    name: source.label || 'Direct Video Stream',
+                    size: 0,
+                    duration: v.duration,
+                    hash: `url:${source.src}`,
+                    url: source.src,
+                    mediaType: 'direct',
+                  });
                 }
               }}
               onError={(e) => {
@@ -397,8 +464,8 @@ export function PlayerView({
 
             {/* Center Cinema File Picker */}
             <div className="relative z-10 flex flex-col items-center text-center max-w-lg mx-auto">
-              {/* Twin-Ring Cinema Motif */}
-              <div className="mb-3.5 flex size-14 sm:size-16 items-center justify-center rounded-full bg-gradient-to-tr from-[#e8a0bf] via-[#ffd8e6] to-[#f2c57c] p-[2px] shadow-lg">
+              {/* Twin-Ring Cinema Motif (hidden on mobile to preserve height) */}
+              <div className="mb-3.5 hidden sm:flex size-14 sm:size-16 items-center justify-center rounded-full bg-gradient-to-tr from-[#e8a0bf] via-[#ffd8e6] to-[#f2c57c] p-[2px] shadow-lg">
                 <div className="flex size-full items-center justify-center rounded-full bg-surface-container-lowest text-primary">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -412,21 +479,21 @@ export function PlayerView({
                 </div>
               </div>
 
-              <h3 className="font-headline-md text-lg sm:text-xl font-bold text-text">
+              <h3 className="font-headline-md text-base sm:text-xl font-bold text-text">
                 {isDragging ? 'Drop video file here' : 'Private Cinema Stage'}
               </h3>
-              <p className="font-body-md text-xs sm:text-sm text-muted mt-1 max-w-md">
-                Choose or drag &amp; drop a local video (MP4/MKV) to watch together in sync. Files stay private on your device.
+              <p className="font-body-md text-xs sm:text-sm text-muted mt-0.5 sm:mt-1 max-w-md hidden sm:block">
+                Choose or drag &amp; drop a local video (MP4/MKV) or enter a video link to watch together in sync.
               </p>
 
               {/* Action Buttons */}
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
-                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-container text-on-primary-container font-headline-md text-xs sm:text-sm font-bold shadow-md hover:bg-primary transition active:scale-95">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+              <div className="mt-3 sm:mt-4 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5">
+                <label className="cursor-pointer inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-primary-container text-on-primary-container font-headline-md text-xs sm:text-sm font-bold shadow-md hover:bg-primary transition active:scale-95">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5 sm:size-4">
                     <path d="M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.955 3.129a.75.75 0 0 0 1.09-1.03l-4.25-4.5a.75.75 0 0 0-1.09 0l-4.25 4.5a.75.75 0 1 0 1.09 1.03L9.25 4.636v8.614Z" />
                     <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
                   </svg>
-                  <span>Choose Video File</span>
+                  <span>Choose File</span>
                   <input
                     type="file"
                     accept="video/*,.mkv"
@@ -442,19 +509,19 @@ export function PlayerView({
                 <button
                   type="button"
                   onClick={() => setShowUrlInput((prev) => !prev)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-surface-container-high border border-outline/30 text-text font-medium text-xs sm:text-sm hover:bg-surface-variant transition active:scale-95 cursor-pointer shadow-sm"
+                  className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl bg-surface-container-high border border-outline/30 text-text font-medium text-xs sm:text-sm hover:bg-surface-variant transition active:scale-95 cursor-pointer shadow-sm"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4 text-muted">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5 sm:size-4 text-muted">
                     <path d="M12.232 4.232a2.5 2.5 0 0 1 3.536 3.536l-1.225 1.224a.75.75 0 0 0 1.061 1.06l1.224-1.224a4 4 0 0 0-5.656-5.656l-3 3a4 4 0 0 0 .225 5.865.75.75 0 0 0 .977-1.138 2.5 2.5 0 0 1-.142-3.667l3-3Z" />
                     <path d="M11.603 7.963a.75.75 0 0 0-.977 1.138 2.5 2.5 0 0 1 .142 3.667l-3 3a2.5 2.5 0 0 1-3.536-3.536l1.225-1.224a.75.75 0 0 0-1.061-1.06l-1.224 1.224a4 4 0 1 0 5.656 5.656l3-3a4 4 0 0 0-.225-5.865Z" />
                   </svg>
-                  <span>Direct URL</span>
+                  <span>Video Link</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => load({ src: '/sample.mp4', label: 'Big Buck Bunny (Sample)' })}
-                  className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-surface-container-high border border-outline/30 text-muted hover:text-text font-medium text-xs sm:text-sm hover:bg-surface-variant transition active:scale-95 cursor-pointer shadow-sm"
+                  onClick={() => load({ src: '/sample.mp4', label: 'Big Buck Bunny (Sample)', mediaType: 'direct' })}
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2.5 rounded-xl bg-surface-container-high border border-outline/30 text-muted hover:text-text font-medium text-xs sm:text-sm hover:bg-surface-variant transition active:scale-95 cursor-pointer shadow-sm"
                   title="Play local sample MP4"
                 >
                   <span>🎬</span>
@@ -462,32 +529,62 @@ export function PlayerView({
                 </button>
               </div>
 
-              {/* Inline URL Input */}
+              {/* Inline URL Input (Supports YouTube & Direct Video URLs) */}
               {showUrlInput && (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    if (directUrl.trim()) {
-                      load({ src: directUrl.trim(), label: directUrl.trim() });
+                    if (!directUrl.trim()) return;
+                    const parsed = parseVideoSource(directUrl.trim());
+                    if (!parsed) {
+                      setError("Please enter a valid YouTube link or direct video (.mp4/.webm) URL.");
+                      return;
+                    }
+                    if (parsed.type === 'youtube') {
+                      load({
+                        src: parsed.url,
+                        label: parsed.label,
+                        mediaType: 'youtube',
+                        videoId: parsed.videoId,
+                      });
+                      setInfo({
+                        name: parsed.label,
+                        size: 0,
+                        duration: 0,
+                        hash: `yt:${parsed.videoId}`,
+                        url: parsed.url,
+                        mediaType: 'youtube',
+                      });
+                    } else {
+                      load({
+                        src: parsed.url,
+                        label: parsed.label,
+                        mediaType: 'direct',
+                      });
                     }
                   }}
-                  className="mt-3 flex w-full max-w-sm items-center gap-1.5 rounded-xl border border-outline/40 bg-surface-container p-1 shadow-sm"
+                  className="mt-3 flex w-full max-w-sm flex-col gap-1.5 rounded-xl border border-outline/40 bg-surface-container p-2 shadow-sm"
                 >
-                  <input
-                    type="url"
-                    value={directUrl}
-                    onChange={(e) => setDirectUrl(e.target.value)}
-                    placeholder="https://example.com/video.mp4"
-                    autoFocus
-                    className="flex-1 bg-transparent px-3 py-1.5 text-xs text-text placeholder:text-muted/60 focus:outline-hidden"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!directUrl.trim()}
-                    className="rounded-lg bg-primary-container px-3 py-1.5 text-xs font-bold text-on-primary-container hover:bg-primary transition disabled:opacity-40 cursor-pointer"
-                  >
-                    Play
-                  </button>
+                  <div className="flex items-center gap-1.5 w-full">
+                    <input
+                      type="text"
+                      value={directUrl}
+                      onChange={(e) => setDirectUrl(e.target.value)}
+                      placeholder="YouTube or direct MP4/web URL"
+                      autoFocus
+                      className="flex-1 bg-transparent px-2.5 py-1 text-xs text-text placeholder:text-muted/60 focus:outline-hidden"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!directUrl.trim()}
+                      className="rounded-lg bg-primary-container px-3 py-1.5 text-xs font-bold text-on-primary-container hover:bg-primary transition disabled:opacity-40 cursor-pointer"
+                    >
+                      Play
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-muted text-left px-1">
+                    Paste YouTube links or direct .mp4/.webm streams to watch together.
+                  </span>
                 </form>
               )}
 

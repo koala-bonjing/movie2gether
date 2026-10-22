@@ -78,9 +78,9 @@ export function FilePickerCard({ onFile, onUrl }: Props) {
           </svg>
           <input
             name="url"
-            type="url"
+            type="text"
             required
-            placeholder="…or paste a direct video link"
+            placeholder="…paste YouTube or direct video link"
             aria-label="Video URL"
             className="flex-1 bg-transparent text-xs text-on-surface focus:outline-none placeholder:text-muted"
           />

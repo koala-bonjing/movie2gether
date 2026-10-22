@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { fingerprint, formatTime, mediaMismatch, type MediaInfo } from './media';
+import { fingerprint, formatTime, mediaMismatch, parseVideoSource, type MediaInfo } from './media';
 
 const KB = 1024;
 const fileOf = (bytes: Uint8Array, name = 'movie.mp4') => new File([bytes as unknown as BlobPart], name);
@@ -129,4 +129,59 @@ describe('formatTime', () => {
     [Infinity, '0:00'],
     [-3, '0:00'],
   ])('%s -> %s', (s, expected) => expect(formatTime(s)).toBe(expected));
+});
+
+describe('parseVideoSource', () => {
+  it('parses standard youtube watch URLs', () => {
+    const res = parseVideoSource('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(res).toEqual({
+      type: 'youtube',
+      videoId: 'dQw4w9WgXcQ',
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      label: 'YouTube (dQw4w9WgXcQ)',
+    });
+  });
+
+  it('parses youtu.be shortlinks', () => {
+    const res = parseVideoSource('https://youtu.be/dQw4w9WgXcQ?t=42');
+    expect(res).toEqual({
+      type: 'youtube',
+      videoId: 'dQw4w9WgXcQ',
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      label: 'YouTube (dQw4w9WgXcQ)',
+    });
+  });
+
+  it('parses youtube shorts and embed links', () => {
+    const shorts = parseVideoSource('https://youtube.com/shorts/dQw4w9WgXcQ');
+    expect(shorts?.type).toBe('youtube');
+    expect(shorts && 'videoId' in shorts ? shorts.videoId : null).toBe('dQw4w9WgXcQ');
+
+    const embed = parseVideoSource('https://www.youtube.com/embed/dQw4w9WgXcQ');
+    expect(embed?.type).toBe('youtube');
+  });
+
+  it('parses direct MP4 video URLs', () => {
+    const res = parseVideoSource('https://example.com/videos/awesome_movie.mp4');
+    expect(res).toEqual({
+      type: 'direct',
+      url: 'https://example.com/videos/awesome_movie.mp4',
+      label: 'awesome_movie.mp4',
+    });
+  });
+
+  it('parses root sample path', () => {
+    const res = parseVideoSource('/sample.mp4');
+    expect(res).toEqual({
+      type: 'direct',
+      url: '/sample.mp4',
+      label: 'sample.mp4',
+    });
+  });
+
+  it('returns null for empty or non-url strings', () => {
+    expect(parseVideoSource('')).toBeNull();
+    expect(parseVideoSource('   ')).toBeNull();
+    expect(parseVideoSource('not a url')).toBeNull();
+  });
 });

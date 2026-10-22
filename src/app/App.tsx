@@ -206,7 +206,7 @@ function RoomSession({
     prevPartnerStatusRef.current = room.partnerStatus;
   }, [room.partnerStatus, videoElement, showToast]);
 
-  // Broadcast media fingerprint when local file is loaded
+  // Broadcast media fingerprint when local file or link is loaded
   useEffect(() => {
     if (localMedia && selfUserId) {
       broadcastMedia({
@@ -215,6 +215,8 @@ function RoomSession({
         size: localMedia.size,
         duration: localMedia.duration,
         hash: localMedia.hash,
+        url: localMedia.url,
+        mediaType: localMedia.mediaType,
       });
     }
   }, [localMedia, selfUserId, broadcastMedia]);
@@ -565,6 +567,9 @@ function RoomSession({
           <div className="w-full">
             <PlayerView
               isMobile={isMobile}
+              channel={room.channel}
+              selfUserId={selfUserId}
+              partnerMedia={sync.partnerMedia}
               onVideoRef={setVideoElement}
               onMediaInfo={setLocalMedia}
               partnerBuffering={sync.partnerBuffering}
@@ -992,6 +997,9 @@ function RoomSession({
               }`}
             >
               <PlayerView
+                channel={room.channel}
+                selfUserId={selfUserId}
+                partnerMedia={sync.partnerMedia}
                 onVideoRef={setVideoElement}
                 onMediaInfo={setLocalMedia}
                 partnerBuffering={sync.partnerBuffering}

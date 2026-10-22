@@ -61,8 +61,12 @@ export function RoomHeader({
   const handleCopyLink = async () => {
     if (typeof window !== 'undefined') {
       try {
-        const url = `${window.location.origin}?room=${roomCode}`;
-        await navigator.clipboard?.writeText(url);
+        const origin = window.location.origin;
+        const textToCopy =
+          origin.includes('localhost') || origin.includes('tauri')
+            ? `Join my Duet room with code: ${roomCode}`
+            : `${origin}?room=${roomCode}`;
+        await navigator.clipboard?.writeText(textToCopy);
         setCopiedKind('link');
         setTimeout(() => setCopiedKind(null), 2000);
       } catch {
