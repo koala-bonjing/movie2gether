@@ -30,6 +30,8 @@ declare global {
       Player: new (
         elementId: string | HTMLElement,
         options: {
+          width?: string | number;
+          height?: string | number;
           videoId?: string;
           playerVars?: Record<string, unknown>;
           events?: {
@@ -57,7 +59,7 @@ export function YouTubePlayerView({
   roomCode,
   onDuration,
   actionToasts,
-  isTheater = false,
+  isTheater: _isTheater = false,
 }: YouTubePlayerViewProps) {
   const containerId = useRef(`yt-player-${Math.random().toString(36).slice(2, 9)}`);
   const playerRef = useRef<YTPlayer | null>(null);
@@ -88,6 +90,52 @@ export function YouTubePlayerView({
     [channel, selfUserId],
   );
 
+  // Toggle playback and broadcast to partner
+  const togglePlay = useCallback(() => {
+    if (!playerRef.current) return;
+    try {
+      if (isPlaying) {
+        playerRef.current.pauseVideo();
+        setIsPlaying(false);
+        broadcastSync(false, playerRef.current.getCurrentTime());
+      } else {
+        playerRef.current.playVideo();
+        setIsPlaying(true);
+        broadcastSync(true, playerRef.current.getCurrentTime());
+      }
+    } catch (e) {
+      console.warn('Failed to toggle YouTube playback:', e);
+    }
+  }, [isPlaying, broadcastSync]);
+
+  // Spacebar and arrow key shortcuts for YouTube
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        if (!playerRef.current) return;
+        const cur = playerRef.current.getCurrentTime() || 0;
+        const next = Math.max(0, cur - 5);
+        playerRef.current.seekTo(next, true);
+        broadcastSync(isPlaying, next);
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        if (!playerRef.current) return;
+        const cur = playerRef.current.getCurrentTime() || 0;
+        const dur = playerRef.current.getDuration() || 0;
+        const next = Math.min(dur, cur + 5);
+        playerRef.current.seekTo(next, true);
+        broadcastSync(isPlaying, next);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [togglePlay, isPlaying, broadcastSync]);
+
   // Initialize YouTube IFrame API
   useEffect(() => {
     let isMounted = true;
@@ -102,20 +150,16 @@ export function YouTubePlayerView({
         }
 
         playerRef.current = new window.YT.Player(containerId.current, {
+          width: '100%',
+          height: '100%',
           videoId,
           playerVars: {
-            autoplay: 0,
+            autoplay: 1,
             controls: 1,
             modestbranding: 1,
             rel: 0,
             playsinline: 1,
             enablejsapi: 1,
-            origin:
-              typeof window !== 'undefined' &&
-              window.location.origin.startsWith('https://') &&
-              !window.location.origin.includes('localhost')
-                ? window.location.origin
-                : undefined,
           },
           events: {
             onReady: (event) => {
@@ -124,6 +168,11 @@ export function YouTubePlayerView({
               const dur = event.target.getDuration();
               if (dur && Number.isFinite(dur)) {
                 onDuration?.(dur);
+              }
+              try {
+                event.target.playVideo();
+              } catch {
+                // browser policy may require user click
               }
             },
             onStateChange: (event) => {
@@ -234,15 +283,9 @@ export function YouTubePlayerView({
   }, [channel, selfUserId]);
 
   return (
-    <div
-      className={`relative w-full ${
-        isTheater
-          ? 'h-[calc(100vh-80px)] max-h-none rounded-none border-none'
-          : 'aspect-video min-h-[220px] sm:min-h-[380px] lg:min-h-[460px] xl:min-h-[540px] max-h-[calc(100vh-150px)] rounded-2xl border border-outline/40 shadow-2xl'
-      } overflow-hidden bg-black flex items-center justify-center`}
-    >
-      {/* Top Floating Badge */}
-      <div className="absolute top-2.5 sm:top-3 left-2.5 sm:left-3 z-20 flex items-center gap-1.5 pointer-events-none select-none">
+    <div className="relative size-full overflow-hidden bg-black flex items-center justify-center select-none">
+      {/* Top Floating Badge with Interactive Play/Pause button */}
+      <div className="absolute top-2.5 sm:top-3 left-2.5 sm:left-3 z-30 flex items-center gap-1.5 select-none">
         <span className="rounded-full bg-red-600/90 text-white px-2 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider shadow-sm">
           YouTube
         </span>
@@ -251,9 +294,15 @@ export function YouTubePlayerView({
             Room {roomCode}
           </span>
         )}
-        <span className="rounded-full bg-black/70 border border-white/10 backdrop-blur-xs px-2 py-0.5 text-[9px] sm:text-[10px] text-tertiary">
-          {isPlaying ? '● Playing' : '❚❚ Paused'}
-        </span>
+        <button
+          type="button"
+          onClick={togglePlay}
+          className="rounded-full bg-black/70 hover:bg-black/90 border border-white/10 backdrop-blur-xs px-2.5 py-0.5 text-[9px] sm:text-[10px] text-tertiary font-medium cursor-pointer transition active:scale-95 shadow-sm flex items-center gap-1"
+          aria-label={isPlaying ? 'Pause video' : 'Play video'}
+        >
+          <span>{isPlaying ? '❚❚' : '▶'}</span>
+          <span>{isPlaying ? 'Playing' : 'Paused'}</span>
+        </button>
       </div>
 
       {/* Action Toasts */}
@@ -271,14 +320,33 @@ export function YouTubePlayerView({
         </div>
       )}
 
-      {/* YouTube IFrame Mount Target */}
-      <div className="size-full">
-        <div id={containerId.current} className="size-full min-h-full" />
+      {/* YouTube IFrame Mount Target (full bleed inside container) */}
+      <div className="relative size-full [&>iframe]:absolute [&>iframe]:inset-0 [&>iframe]:size-full [&>iframe]:border-0">
+        <div id={containerId.current} className="size-full" />
       </div>
+
+      {/* Center Cinematic Play Button Overlay when Paused */}
+      {!isPlaying && isReady && (
+        <button
+          type="button"
+          onClick={togglePlay}
+          className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/45 backdrop-blur-[2px] transition-all hover:bg-black/35 cursor-pointer group"
+          aria-label="Play YouTube Video"
+        >
+          <div className="flex size-16 sm:size-20 items-center justify-center rounded-full bg-primary-container text-on-primary-container shadow-2xl transition-transform group-hover:scale-110 active:scale-95">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-8 sm:size-10 translate-x-0.5">
+              <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+            </svg>
+          </div>
+          <span className="mt-2.5 text-xs font-semibold text-white/95 tracking-wide drop-shadow-md">
+            Click to Play in Sync
+          </span>
+        </button>
+      )}
 
       {/* Loading Overlay */}
       {!isReady && !ytError && (
-        <div className="absolute inset-0 grid place-items-center bg-black/80 z-10 select-none">
+        <div className="absolute inset-0 grid place-items-center bg-black/90 z-25 select-none">
           <div className="flex flex-col items-center gap-2">
             <span className="size-3 rounded-full bg-red-500 animate-ping" />
             <span className="text-xs text-muted font-medium">Connecting YouTube Player…</span>
@@ -288,7 +356,7 @@ export function YouTubePlayerView({
 
       {/* Error Overlay */}
       {ytError && (
-        <div role="alert" className="absolute inset-0 grid place-items-center bg-black/90 p-4 z-20 text-center select-none">
+        <div role="alert" className="absolute inset-0 grid place-items-center bg-black/95 p-4 z-30 text-center select-none">
           <div className="max-w-md flex flex-col items-center gap-2">
             <span className="text-2xl">⚠️</span>
             <p className="text-sm font-semibold text-danger">{ytError}</p>
