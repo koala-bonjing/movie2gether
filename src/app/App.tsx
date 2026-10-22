@@ -449,6 +449,9 @@ function RoomSession({
           <div className="size-full flex-1">
             <PlayerView
               isMobile={true}
+              channel={room.channel}
+              selfUserId={selfUserId}
+              partnerMedia={sync.partnerMedia}
               onVideoRef={setVideoElement}
               onMediaInfo={setLocalMedia}
               partnerBuffering={sync.partnerBuffering}
