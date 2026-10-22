@@ -61,9 +61,9 @@ export function YouTubePlayerView({
   actionToasts,
   isTheater: _isTheater = false,
 }: YouTubePlayerViewProps) {
-  const containerId = useRef(`yt-player-${Math.random().toString(36).slice(2, 9)}`);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const iframeId = useRef(`yt-iframe-${Math.random().toString(36).slice(2, 9)}`);
   const playerRef = useRef<YTPlayer | null>(null);
-  const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
   const isApplyingRemoteRef = useRef(false);
@@ -90,23 +90,38 @@ export function YouTubePlayerView({
     [channel, selfUserId],
   );
 
+  // Direct postMessage command to YouTube iframe as fallback
+  const postYTCommand = useCallback((func: string, args: unknown[] = []) => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ event: 'command', func, args }),
+        '*',
+      );
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Toggle playback and broadcast to partner
   const togglePlay = useCallback(() => {
-    if (!playerRef.current) return;
     try {
       if (isPlaying) {
-        playerRef.current.pauseVideo();
+        playerRef.current?.pauseVideo?.();
+        postYTCommand('pauseVideo');
         setIsPlaying(false);
-        broadcastSync(false, playerRef.current.getCurrentTime());
+        const cur = playerRef.current?.getCurrentTime?.() ?? 0;
+        broadcastSync(false, cur);
       } else {
-        playerRef.current.playVideo();
+        playerRef.current?.playVideo?.();
+        postYTCommand('playVideo');
         setIsPlaying(true);
-        broadcastSync(true, playerRef.current.getCurrentTime());
+        const cur = playerRef.current?.getCurrentTime?.() ?? 0;
+        broadcastSync(true, cur);
       }
     } catch (e) {
       console.warn('Failed to toggle YouTube playback:', e);
     }
-  }, [isPlaying, broadcastSync]);
+  }, [isPlaying, postYTCommand, broadcastSync]);
 
   // Spacebar and arrow key shortcuts for YouTube
   useEffect(() => {
@@ -117,62 +132,45 @@ export function YouTubePlayerView({
         togglePlay();
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
-        if (!playerRef.current) return;
-        const cur = playerRef.current.getCurrentTime() || 0;
+        const cur = playerRef.current?.getCurrentTime?.() || 0;
         const next = Math.max(0, cur - 5);
-        playerRef.current.seekTo(next, true);
+        playerRef.current?.seekTo?.(next, true);
+        postYTCommand('seekTo', [next, true]);
         broadcastSync(isPlaying, next);
       } else if (e.code === 'ArrowRight') {
         e.preventDefault();
-        if (!playerRef.current) return;
-        const cur = playerRef.current.getCurrentTime() || 0;
-        const dur = playerRef.current.getDuration() || 0;
+        const cur = playerRef.current?.getCurrentTime?.() || 0;
+        const dur = playerRef.current?.getDuration?.() || 0;
         const next = Math.min(dur, cur + 5);
-        playerRef.current.seekTo(next, true);
+        playerRef.current?.seekTo?.(next, true);
+        postYTCommand('seekTo', [next, true]);
         broadcastSync(isPlaying, next);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [togglePlay, isPlaying, broadcastSync]);
+  }, [togglePlay, isPlaying, postYTCommand, broadcastSync]);
 
-  // Initialize YouTube IFrame API
+  // Initialize YouTube IFrame API referencing existing iframe
   useEffect(() => {
     let isMounted = true;
 
     const initPlayer = () => {
-      if (!window.YT?.Player || !document.getElementById(containerId.current)) return;
+      if (!window.YT?.Player || !document.getElementById(iframeId.current)) return;
 
       try {
         if (playerRef.current) {
-          playerRef.current.destroy();
+          playerRef.current.destroy?.();
           playerRef.current = null;
         }
 
-        playerRef.current = new window.YT.Player(containerId.current, {
-          width: '100%',
-          height: '100%',
-          videoId,
-          playerVars: {
-            autoplay: 1,
-            controls: 1,
-            modestbranding: 1,
-            rel: 0,
-            playsinline: 1,
-            enablejsapi: 1,
-          },
+        playerRef.current = new window.YT.Player(iframeId.current, {
           events: {
             onReady: (event) => {
               if (!isMounted) return;
-              setIsReady(true);
               const dur = event.target.getDuration();
               if (dur && Number.isFinite(dur)) {
                 onDuration?.(dur);
-              }
-              try {
-                event.target.playVideo();
-              } catch {
-                // browser policy may require user click
               }
             },
             onStateChange: (event) => {
@@ -232,7 +230,7 @@ export function YouTubePlayerView({
       isMounted = false;
       if (playerRef.current) {
         try {
-          playerRef.current.destroy();
+          playerRef.current.destroy?.();
         } catch {
           // ignore
         }
@@ -247,26 +245,29 @@ export function YouTubePlayerView({
 
     const handleSync = ({ payload }: { payload: unknown }) => {
       const msg = safeParseSyncMsg(payload);
-      if (!msg || msg.from === selfUserId || !playerRef.current) return;
+      if (!msg || msg.from === selfUserId) return;
 
-      const player = playerRef.current;
       isApplyingRemoteRef.current = true;
 
       try {
-        const currentPos = player.getCurrentTime();
+        const currentPos = playerRef.current?.getCurrentTime?.() ?? 0;
         const expected = expectedPos(msg, 0, Date.now());
 
         if (msg.playing) {
           const drift = Math.abs(currentPos - expected);
           if (drift > 1.5) {
-            player.seekTo(expected, true);
+            playerRef.current?.seekTo?.(expected, true);
+            postYTCommand('seekTo', [expected, true]);
           }
-          player.playVideo();
+          playerRef.current?.playVideo?.();
+          postYTCommand('playVideo');
           setIsPlaying(true);
         } else {
-          player.pauseVideo();
+          playerRef.current?.pauseVideo?.();
+          postYTCommand('pauseVideo');
           if (Math.abs(currentPos - msg.pos) > 1.0) {
-            player.seekTo(msg.pos, true);
+            playerRef.current?.seekTo?.(msg.pos, true);
+            postYTCommand('seekTo', [msg.pos, true]);
           }
           setIsPlaying(false);
         }
@@ -280,12 +281,12 @@ export function YouTubePlayerView({
     };
 
     channel.on('broadcast', { event: 'sync' }, handleSync);
-  }, [channel, selfUserId]);
+  }, [channel, selfUserId, postYTCommand]);
 
   return (
     <div className="relative size-full overflow-hidden bg-black flex items-center justify-center select-none">
       {/* Top Floating Badge with Interactive Play/Pause button */}
-      <div className="absolute top-2.5 sm:top-3 left-2.5 sm:left-3 z-30 flex items-center gap-1.5 select-none">
+      <div className="absolute top-2.5 sm:top-3 left-2.5 sm:left-3 z-30 flex items-center gap-1.5 select-none pointer-events-auto">
         <span className="rounded-full bg-red-600/90 text-white px-2 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider shadow-sm">
           YouTube
         </span>
@@ -320,37 +321,33 @@ export function YouTubePlayerView({
         </div>
       )}
 
-      {/* YouTube IFrame Mount Target (full bleed inside container) */}
-      <div className="relative size-full [&>iframe]:absolute [&>iframe]:inset-0 [&>iframe]:size-full [&>iframe]:border-0">
-        <div id={containerId.current} className="size-full" />
-      </div>
+      {/* YouTube IFrame: rendered directly in React JSX so React never unmounts it on state updates */}
+      <iframe
+        ref={iframeRef}
+        id={iframeId.current}
+        src={`https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1&playsinline=1&controls=1&rel=0`}
+        title="YouTube Video Player"
+        className="absolute inset-0 size-full border-0 pointer-events-auto"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+      />
 
-      {/* Center Cinematic Play Button Overlay when Paused */}
-      {!isPlaying && isReady && (
-        <button
-          type="button"
-          onClick={togglePlay}
-          className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/45 backdrop-blur-[2px] transition-all hover:bg-black/35 cursor-pointer group"
-          aria-label="Play YouTube Video"
-        >
-          <div className="flex size-16 sm:size-20 items-center justify-center rounded-full bg-primary-container text-on-primary-container shadow-2xl transition-transform group-hover:scale-110 active:scale-95">
+      {/* Center Cinematic Play Button Overlay when Paused (does not block clicks to underlying iframe) */}
+      {!isPlaying && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none bg-black/25 backdrop-blur-[1px] transition-all">
+          <button
+            type="button"
+            onClick={togglePlay}
+            className="pointer-events-auto flex size-16 sm:size-20 items-center justify-center rounded-full bg-primary-container text-on-primary-container shadow-2xl transition-transform hover:scale-110 active:scale-95 cursor-pointer"
+            aria-label="Play YouTube Video"
+          >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-8 sm:size-10 translate-x-0.5">
               <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
             </svg>
-          </div>
+          </button>
           <span className="mt-2.5 text-xs font-semibold text-white/95 tracking-wide drop-shadow-md">
             Click to Play in Sync
           </span>
-        </button>
-      )}
-
-      {/* Loading Overlay */}
-      {!isReady && !ytError && (
-        <div className="absolute inset-0 grid place-items-center bg-black/90 z-25 select-none">
-          <div className="flex flex-col items-center gap-2">
-            <span className="size-3 rounded-full bg-red-500 animate-ping" />
-            <span className="text-xs text-muted font-medium">Connecting YouTube Player…</span>
-          </div>
         </div>
       )}
 
