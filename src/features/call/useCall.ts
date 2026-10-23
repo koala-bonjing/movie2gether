@@ -91,6 +91,7 @@ export function useCall({
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const statsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
+  const startCallRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   const isCamOnRef = useRef(isCamOn);
   useEffect(() => {
@@ -240,7 +241,10 @@ export function useCall({
   }, [sendSignal]);
 
   const toggleCam = useCallback(() => {
-    if (!localStreamRef.current) return;
+    if (!localStreamRef.current) {
+      void startCallRef.current();
+      return;
+    }
     const videoTrack = localStreamRef.current.getVideoTracks()[0];
     if (videoTrack) {
       const next = !videoTrack.enabled;
@@ -251,7 +255,10 @@ export function useCall({
   }, [sendMediaState]);
 
   const toggleMic = useCallback(() => {
-    if (!localStreamRef.current) return;
+    if (!localStreamRef.current) {
+      void startCallRef.current();
+      return;
+    }
     const audioTrack = localStreamRef.current.getAudioTracks()[0];
     if (audioTrack) {
       const next = !audioTrack.enabled;
@@ -482,6 +489,8 @@ export function useCall({
     },
     [initPeerConnection, sendSignal, startCall],
   );
+
+  startCallRef.current = startCall;
 
   const stopScreenShare = useCallback(async () => {
     if (!isScreenSharingRef.current && !screenStreamRef.current) return;

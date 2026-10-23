@@ -306,11 +306,21 @@ function RoomSession({
 
   const showMismatch = sync.partnerMedia && localMedia && dismissedHash !== sync.partnerMedia.hash;
 
-  // Partner cam bubble visibility: show when call is connected and in theater mode (mobile or desktop), or on mobile chat tab
+  // Floating cam bubble visibility: show when call is active or local camera is on, and in theater mode (mobile or desktop), or on mobile chat tab
+  const hasActiveCallOrCam =
+    call.connectionState === 'connected' ||
+    call.connectionState === 'connecting' ||
+    call.localStream !== null;
+
   const showBubble =
-    call.connectionState === 'connected' &&
+    hasActiveCallOrCam &&
     !isBubbleHidden &&
     (isTheater || (isMobile && mobileTab === 'chat'));
+
+  const activeCamStream = call.remoteStream || call.localStream;
+  const activeCamName = call.remoteStream ? (room.partner?.name ?? 'Partner') : (room.self?.name ?? 'You');
+  const activeCamOn = call.remoteStream ? call.remoteCamOn : call.isCamOn;
+  const activeMicOn = call.remoteStream ? call.remoteMicOn : call.isMicOn;
 
   // Last emoji reaction from messages
   const lastReaction = (() => {
@@ -421,23 +431,6 @@ function RoomSession({
             </div>
           </header>
 
-          {/* Floating Partner Webcam in landscape theater */}
-          {showBubble && (
-            <Suspense fallback={null}>
-              <FloatingCamBubble
-                stream={call.remoteStream}
-                partnerName={room.partner?.name ?? 'Partner'}
-                isCamOn={call.remoteCamOn}
-                isMicOn={call.remoteMicOn}
-                stats={call.remoteStats}
-                onExpand={() => {
-                  setIsLandscapeChatOpen(true);
-                }}
-                onClose={() => setIsBubbleHidden(true)}
-              />
-            </Suspense>
-          )}
-
           {/* Fullscreen Video Viewport Layer */}
           <div className="size-full flex-1">
             <PlayerView
@@ -462,7 +455,23 @@ function RoomSession({
               onReaction={(emoji) => void chat.sendMessage(emoji)}
               lastReaction={lastReaction}
               actionToasts={toasts}
-            />
+            >
+              {showBubble && (
+                <Suspense fallback={null}>
+                  <FloatingCamBubble
+                    stream={activeCamStream}
+                    partnerName={activeCamName}
+                    isCamOn={activeCamOn}
+                    isMicOn={activeMicOn}
+                    stats={call.remoteStats}
+                    onExpand={() => {
+                      setIsLandscapeChatOpen(true);
+                    }}
+                    onClose={() => setIsBubbleHidden(true)}
+                  />
+                </Suspense>
+              )}
+            </PlayerView>
           </div>
         </div>
 
@@ -587,25 +596,25 @@ function RoomSession({
               onReaction={(emoji) => void chat.sendMessage(emoji)}
               lastReaction={lastReaction}
               actionToasts={toasts}
-            />
+            >
+              {showBubble && (
+                <Suspense fallback={null}>
+                  <FloatingCamBubble
+                    stream={activeCamStream}
+                    partnerName={activeCamName}
+                    isCamOn={activeCamOn}
+                    isMicOn={activeMicOn}
+                    stats={call.remoteStats}
+                    onExpand={() => {
+                      setMobileTab('call');
+                      setIsTheater(false);
+                    }}
+                    onClose={() => setIsBubbleHidden(true)}
+                  />
+                </Suspense>
+              )}
+            </PlayerView>
           </div>
-
-          {showBubble && (
-            <Suspense fallback={null}>
-              <FloatingCamBubble
-                stream={call.remoteStream}
-                partnerName={room.partner?.name ?? 'Partner'}
-                isCamOn={call.remoteCamOn}
-                isMicOn={call.remoteMicOn}
-                stats={call.remoteStats}
-                onExpand={() => {
-                  setMobileTab('call');
-                  setIsTheater(false);
-                }}
-                onClose={() => setIsBubbleHidden(true)}
-              />
-            </Suspense>
-          )}
 
           {showMismatch && sync.partnerMedia && localMedia && (
             <MediaMismatchDialog
@@ -1017,24 +1026,24 @@ function RoomSession({
                 onReaction={(emoji) => void chat.sendMessage(emoji)}
                 lastReaction={lastReaction}
                 actionToasts={toasts}
-              />
-
-              {showBubble && (
-                <Suspense fallback={null}>
-                  <FloatingCamBubble
-                    stream={call.remoteStream}
-                    partnerName={room.partner?.name ?? 'Partner'}
-                    isCamOn={call.remoteCamOn}
-                    isMicOn={call.remoteMicOn}
-                    stats={call.remoteStats}
-                    onExpand={() => {
-                      setMobileTab('call');
-                      setIsTheater(false);
-                    }}
-                    onClose={() => setIsBubbleHidden(true)}
-                  />
-                </Suspense>
-              )}
+              >
+                {showBubble && (
+                  <Suspense fallback={null}>
+                    <FloatingCamBubble
+                      stream={activeCamStream}
+                      partnerName={activeCamName}
+                      isCamOn={activeCamOn}
+                      isMicOn={activeMicOn}
+                      stats={call.remoteStats}
+                      onExpand={() => {
+                        setMobileTab('call');
+                        setIsTheater(false);
+                      }}
+                      onClose={() => setIsBubbleHidden(true)}
+                    />
+                  </Suspense>
+                )}
+              </PlayerView>
 
               {showMismatch && sync.partnerMedia && localMedia && (
                 <MediaMismatchDialog

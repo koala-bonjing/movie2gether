@@ -27,6 +27,7 @@ type Meta = { duration: number; width: number; height: number };
 const mb = new Intl.NumberFormat(undefined, { style: 'unit', unit: 'megabyte', maximumFractionDigits: 1 });
 
 export interface PlayerViewProps {
+  children?: React.ReactNode;
   onVideoRef?: (el: HTMLVideoElement | null) => void;
   onMediaInfo?: (info: MediaInfo | null) => void;
   channel?: DuetChannel | null;
@@ -51,6 +52,7 @@ export interface PlayerViewProps {
 }
 
 export function PlayerView({
+  children,
   onVideoRef,
   onMediaInfo,
   channel,
@@ -594,6 +596,7 @@ export function PlayerView({
             </div>
           </div>
         )}
+        {children}
       </div>
 
       {/* Video Metadata Strip & Subtitles Row (Desktop only; on mobile this lives in Call & Media tab) */}
