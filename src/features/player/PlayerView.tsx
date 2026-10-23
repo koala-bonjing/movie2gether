@@ -352,7 +352,7 @@ export function PlayerView({
                       : "This file won't play in this browser.",
                   );
                 } else {
-                  setError("That link didn't load. It needs to be a direct video URL this browser can open.");
+                  setError("That link didn't load as a video. If this is a streaming website (like Braflix or Netflix), open it in your browser and use 'Share Screen' in the call panel to watch together!");
                 }
               }}
             >

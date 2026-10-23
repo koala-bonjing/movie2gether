@@ -90,6 +90,17 @@ export function YouTubePlayerView({
     [channel, selfUserId],
   );
 
+  // Stable callback refs so effect doesn't re-run and destroy the iframe on parent re-renders
+  const onDurationRef = useRef(onDuration);
+  useEffect(() => {
+    onDurationRef.current = onDuration;
+  }, [onDuration]);
+
+  const broadcastSyncRef = useRef(broadcastSync);
+  useEffect(() => {
+    broadcastSyncRef.current = broadcastSync;
+  }, [broadcastSync]);
+
   // Direct postMessage command to YouTube iframe as fallback
   const postYTCommand = useCallback((func: string, args: unknown[] = []) => {
     try {
@@ -156,13 +167,11 @@ export function YouTubePlayerView({
     let isMounted = true;
 
     const initPlayer = () => {
-      if (!window.YT?.Player || !document.getElementById(iframeId.current)) return;
+      const el = document.getElementById(iframeId.current);
+      if (!window.YT?.Player || !el) return;
 
       try {
-        if (playerRef.current) {
-          playerRef.current.destroy?.();
-          playerRef.current = null;
-        }
+        if (playerRef.current) return;
 
         playerRef.current = new window.YT.Player(iframeId.current, {
           events: {
@@ -170,7 +179,7 @@ export function YouTubePlayerView({
               if (!isMounted) return;
               const dur = event.target.getDuration();
               if (dur && Number.isFinite(dur)) {
-                onDuration?.(dur);
+                onDurationRef.current?.(dur);
               }
             },
             onStateChange: (event) => {
@@ -181,12 +190,12 @@ export function YouTubePlayerView({
               if (state === 1) {
                 setIsPlaying(true);
                 if (!isApplyingRemoteRef.current) {
-                  broadcastSync(true, target.getCurrentTime());
+                  broadcastSyncRef.current(true, target.getCurrentTime());
                 }
               } else if (state === 2) {
                 setIsPlaying(false);
                 if (!isApplyingRemoteRef.current) {
-                  broadcastSync(false, target.getCurrentTime());
+                  broadcastSyncRef.current(false, target.getCurrentTime());
                 }
               }
             },
@@ -228,16 +237,10 @@ export function YouTubePlayerView({
 
     return () => {
       isMounted = false;
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy?.();
-        } catch {
-          // ignore
-        }
-        playerRef.current = null;
-      }
+      // Do NOT call player.destroy() because it removes the <iframe> DOM element behind React's back!
+      playerRef.current = null;
     };
-  }, [videoId, onDuration, broadcastSync]);
+  }, [videoId]);
 
   // Listen for remote sync events
   useEffect(() => {
@@ -325,7 +328,7 @@ export function YouTubePlayerView({
       <iframe
         ref={iframeRef}
         id={iframeId.current}
-        src={`https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1&playsinline=1&controls=1&rel=0`}
+        src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=0&playsinline=1&controls=1&rel=0`}
         title="YouTube Video Player"
         className="absolute inset-0 size-full border-0 pointer-events-auto"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

@@ -7,7 +7,6 @@ import { useSync, MediaMismatchDialog, SyncDevOverlay } from '../features/sync';
 import { safeParseRoomModeMsg } from '../features/sync/protocol';
 import { useChat } from '../features/chat/useChat';
 import { useCall } from '../features/call/useCall';
-import { CamTile } from '../features/call/CamTile';
 import { Toast, PwaInstallPrompt, Button } from '../ui';
 import { ThemePicker } from '../features/theme';
 
@@ -307,11 +306,11 @@ function RoomSession({
 
   const showMismatch = sync.partnerMedia && localMedia && dismissedHash !== sync.partnerMedia.hash;
 
-  // Partner cam bubble visibility: show when call is connected and user is in chat view on mobile, or in theater mode
+  // Partner cam bubble visibility: show when call is connected and in theater mode (mobile or desktop), or on mobile chat tab
   const showBubble =
     call.connectionState === 'connected' &&
     !isBubbleHidden &&
-    ((isMobile && mobileTab === 'chat') || (isTheater && !isMobile));
+    (isTheater || (isMobile && mobileTab === 'chat'));
 
   // Last emoji reaction from messages
   const lastReaction = (() => {
@@ -422,27 +421,21 @@ function RoomSession({
             </div>
           </header>
 
-          {/* Floating Partner Webcam PiP in landscape */}
-          {call.connectionState === 'connected' && call.remoteStream && (
-            <aside className="absolute top-14 left-4 z-20 pointer-events-auto">
-              <div className="relative w-[78px] h-[78px] rounded-2xl p-[2px] bg-gradient-to-b from-[#E8A0BF] via-[#E8A0BF]/40 to-[#F2C57C]/40 shadow-2xl backdrop-blur-md border border-[#E8A0BF]/30">
-                <div className="size-full rounded-[14px] overflow-hidden bg-[#0F0D12] relative">
-                  <CamTile
-                    stream={call.remoteStream}
-                    name={room.partner?.name || 'Partner'}
-                    isLocal={false}
-                    isCamOn={call.remoteCamOn}
-                    isMicOn={call.remoteMicOn}
-                    stats={call.remoteStats}
-                    className="size-full border-0"
-                  />
-                </div>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#0F0D12] border border-[#8AE2B6]/40 text-[#8AE2B6] font-mono text-[8px] font-bold px-1.5 py-0.2 rounded-full flex items-center gap-1 shadow-md uppercase tracking-wider">
-                  <span className="size-1.5 rounded-full bg-[#8AE2B6] animate-ping" />
-                  LIVE
-                </div>
-              </div>
-            </aside>
+          {/* Floating Partner Webcam in landscape theater */}
+          {showBubble && (
+            <Suspense fallback={null}>
+              <FloatingCamBubble
+                stream={call.remoteStream}
+                partnerName={room.partner?.name ?? 'Partner'}
+                isCamOn={call.remoteCamOn}
+                isMicOn={call.remoteMicOn}
+                stats={call.remoteStats}
+                onExpand={() => {
+                  setIsLandscapeChatOpen(true);
+                }}
+                onClose={() => setIsBubbleHidden(true)}
+              />
+            </Suspense>
           )}
 
           {/* Fullscreen Video Viewport Layer */}
