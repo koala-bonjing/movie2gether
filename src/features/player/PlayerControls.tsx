@@ -67,7 +67,7 @@ const isFullscreenSupported = () =>
     'webkitFullscreenEnabled' in document ||
     'webkitEnterFullscreen' in HTMLVideoElement.prototype);
 
-const toggleFullscreen = (container: HTMLElement, video: HTMLVideoElement) => {
+export const toggleFullscreen = (container: HTMLElement, video?: HTMLVideoElement | null) => {
   const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> };
   const orientation = typeof screen !== 'undefined' && 'orientation' in screen ? screen.orientation : null;
 
@@ -93,11 +93,26 @@ const toggleFullscreen = (container: HTMLElement, video: HTMLVideoElement) => {
         .catch(() => {});
     } else if ('webkitRequestFullscreen' in container) {
       void (container as HTMLElement & { webkitRequestFullscreen: () => void }).webkitRequestFullscreen();
-    } else if ('webkitEnterFullscreen' in video) {
+    } else if (video && 'webkitEnterFullscreen' in video) {
       (video as HTMLVideoElement & { webkitEnterFullscreen: () => void }).webkitEnterFullscreen();
     }
   }
 };
+
+export function resolveBackdropTap({
+  playing,
+  visible,
+  justRevealedByPointerDown,
+}: {
+  playing: boolean;
+  visible: boolean;
+  justRevealedByPointerDown: boolean;
+}): 'reveal' | 'toggle' {
+  if (playing && (!visible || justRevealedByPointerDown)) {
+    return 'reveal';
+  }
+  return 'toggle';
+}
 
 export type PlayerControlsProps = {
   video: HTMLVideoElement;
@@ -153,30 +168,65 @@ export function PlayerControls({
   const subMenuRef = useRef<HTMLDivElement>(null);
   const subFileInputRef = useRef<HTMLInputElement>(null);
 
+  const visible = !s.playing || active || showSubMenu;
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+  const justRevealedRef = useRef(false);
+
   useEffect(() => {
     const update = () => setS(snapshot(video));
     EVENTS.forEach((e) => video.addEventListener(e, update));
     return () => EVENTS.forEach((e) => video.removeEventListener(e, update));
   }, [video]);
 
+  // Unlock orientation if fullscreen is exited via Escape or Android system back gesture
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const doc = document as Document & { webkitFullscreenElement?: Element };
+      if (!document.fullscreenElement && !doc.webkitFullscreenElement) {
+        const orientation = typeof screen !== 'undefined' && 'orientation' in screen ? screen.orientation : null;
+        if (orientation && typeof (orientation as unknown as { unlock?: () => void }).unlock === 'function') {
+          try {
+            (orientation as unknown as { unlock: () => void }).unlock();
+          } catch {
+            // ignore
+          }
+        }
+      }
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
   // Auto-hide controls 2.5s after pointer stops moving while video is playing (DESIGN.md: video first).
   useEffect(() => {
-    if (!s.playing || showSubMenu) return;
+    if (!s.playing || showSubMenu) {
+      justRevealedRef.current = false;
+      return;
+    }
     let timer: ReturnType<typeof setTimeout>;
     const show = () => {
       setActive(true);
       clearTimeout(timer);
       timer = setTimeout(() => setActive(false), 2500);
     };
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === 'touch' && !visibleRef.current) return;
+      show();
+    };
+    const onPointerDown = () => {
+      justRevealedRef.current = !visibleRef.current;
+      show();
+    };
 
     timer = setTimeout(() => setActive(false), 2500);
     const el = container;
-    el.addEventListener('pointermove', show);
-    el.addEventListener('pointerdown', show);
+    el.addEventListener('pointermove', onPointerMove);
+    el.addEventListener('pointerdown', onPointerDown);
     return () => {
       clearTimeout(timer);
-      el.removeEventListener('pointermove', show);
-      el.removeEventListener('pointerdown', show);
+      el.removeEventListener('pointermove', onPointerMove);
+      el.removeEventListener('pointerdown', onPointerDown);
     };
   }, [s.playing, showSubMenu, container]);
 
@@ -191,8 +241,6 @@ export function PlayerControls({
     window.addEventListener('pointerdown', handleOutside);
     return () => window.removeEventListener('pointerdown', handleOutside);
   }, [showSubMenu]);
-
-  const visible = !s.playing || active || showSubMenu;
 
   // Keyboard shortcuts (DESIGN.md): Space, ← → (5s), F, M, C (chat).
   useEffect(() => {
@@ -222,8 +270,14 @@ export function PlayerControls({
   const pct = (x: number) => `${s.duration ? (x / s.duration) * 100 : 0}%`;
 
   const onBackdropClick = () => {
-    // If playing and controls were hidden, reveal them first rather than abruptly pausing.
-    if (s.playing && !visible) {
+    const action = resolveBackdropTap({
+      playing: s.playing,
+      visible,
+      justRevealedByPointerDown: justRevealedRef.current,
+    });
+    justRevealedRef.current = false;
+    // If playing and controls were hidden before this tap, reveal them first rather than abruptly pausing.
+    if (action === 'reveal') {
       setActive(true);
     } else {
       toggle(video);

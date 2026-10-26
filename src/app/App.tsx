@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { PlayerView, type MediaInfo } from '../features/player';
+import { PlayerView, toggleFullscreen, type MediaInfo } from '../features/player';
 import { formatTime } from '../features/player/media';
 import { LobbyView } from '../features/lobby';
 import { useRoom, RoomHeader } from '../features/room';
@@ -315,7 +315,7 @@ function RoomSession({
   const showBubble =
     hasActiveCallOrCam &&
     !isBubbleHidden &&
-    (isTheater || (isMobile && mobileTab === 'chat'));
+    (isTheater || isLandscape || (isMobile && mobileTab === 'chat'));
 
   const activeCamStream = call.remoteStream || call.localStream;
   const activeCamName = call.remoteStream ? (room.partner?.name ?? 'Partner') : (room.self?.name ?? 'You');
@@ -335,213 +335,48 @@ function RoomSession({
     return null;
   })();
 
-  if (isLandscape) {
-    return (
-      <main className="fixed inset-0 z-50 flex flex-row bg-[#0F0D12] overflow-hidden select-none">
-        {/* Main Landscape Theater Stage */}
-        <div className="relative flex-1 h-full overflow-hidden flex flex-col justify-between">
-          {/* Top Bar Overlay */}
-          <header className="absolute top-0 inset-x-0 z-30 pt-safe px-4 pt-2.5 flex items-center justify-between pointer-events-auto">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleLeave}
-                className="size-8 rounded-full bg-[#1A1720]/80 backdrop-blur-md border border-[#332C3D]/60 flex items-center justify-center text-[#F4EFF6] active:scale-95 transition-all shadow-md cursor-pointer"
-                title="Leave Room"
-                aria-label="Leave Room"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
-                  <path fillRule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clipRule="evenodd" />
-                </svg>
-              </button>
-
-              <div className="flex items-center gap-2 bg-[#1A1720]/80 backdrop-blur-md border border-[#332C3D]/70 px-2.5 py-1 rounded-full shadow-lg">
-                <div className="relative size-5 rounded-full p-[1.5px] bg-gradient-to-tr from-[#E8A0BF] via-[#F2C57C] to-[#E8A0BF] flex items-center justify-center shadow-[0_0_8px_rgba(232,160,191,0.4)]">
-                  <div className="size-full rounded-full bg-[#0F0D12] flex items-center justify-center">
-                    <span className="text-[#E8A0BF] text-[10px] font-bold">▶</span>
-                  </div>
-                </div>
-                <span className="text-xs font-bold tracking-tight text-[#F4EFF6]">Duet</span>
-                <span className="text-[#332C3D] font-mono text-[10px]">|</span>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(roomCode);
-                      showToast('Room code copied!');
-                    } catch {
-                      // ignore
-                    }
-                  }}
-                  className="bg-[#241F2D] text-[#F2C57C] font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded tracking-wider border border-[#F2C57C]/20 cursor-pointer hover:underline"
-                >
-                  [ {roomCode} ]
-                </button>
-                <div className="flex items-center gap-1.5 ml-0.5">
-                  <span className="relative flex size-2">
-                    <span className="animate-ping absolute inline-flex size-full rounded-full bg-[#8AE2B6] opacity-75" />
-                    <span className="relative inline-flex rounded-full size-2 bg-[#8AE2B6]" />
-                  </span>
-                  <span className="text-[11px] font-medium text-[#F4EFF6]/90 truncate max-w-[120px]">
-                    {room.partner?.name ?? 'Waiting'}
-                    <span className="text-[#A79FB3] text-[10px] ml-1">
-                      ({Math.abs(sync.drift) < 0.05 ? 'In sync' : `${Math.round(Math.abs(sync.drift) * 1000)}ms`})
-                    </span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right utility actions */}
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setIsLandscapeChatOpen((prev) => !prev)}
-                className={`h-7 px-2.5 rounded-full border text-[11px] font-semibold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${
-                  isLandscapeChatOpen
-                    ? 'bg-[#E8A0BF] text-[#370923] border-[#E8A0BF]'
-                    : 'bg-[#E8A0BF]/15 border-[#E8A0BF]/40 text-[#E8A0BF] hover:bg-[#E8A0BF]/25'
-                }`}
-                id="toggle-chat-btn"
-              >
-                <span>Chat</span>
-                {chat.unreadCount > 0 && (
-                  <span className="bg-[#E8A0BF] text-[#370923] font-mono text-[9px] font-bold rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center leading-none">
-                    {chat.unreadCount}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (document.fullscreenElement) {
-                    void document.exitFullscreen().catch(() => {});
-                  } else {
-                    void document.documentElement.requestFullscreen().catch(() => {});
-                  }
-                }}
-                className="size-7 rounded-full bg-[#1A1720]/80 backdrop-blur-md border border-[#332C3D]/60 flex items-center justify-center text-[#A79FB3] hover:text-[#F4EFF6] active:scale-95 transition-all cursor-pointer"
-                title="Fullscreen"
-                aria-label="Fullscreen"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
-                  <path fillRule="evenodd" d="M3.25 3.5A.75.75 0 0 0 2.5 4.25v3a.75.75 0 0 0 1.5 0V5.5h1.75a.75.75 0 0 0 0-1.5H3.25Zm13.5 0h-2.5a.75.75 0 0 0 0 1.5h1.75v1.75a.75.75 0 0 0 1.5 0v-3a.75.75 0 0 0-.75-.75Zm0 13a.75.75 0 0 0 .75-.75v-3a.75.75 0 0 0-1.5 0v1.75h-1.75a.75.75 0 0 0 0 1.5h2.5Zm-13.5 0h2.5a.75.75 0 0 0 0-1.5H4V13.25a.75.75 0 0 0-1.5 0v3c0 .414.336.75.75.75Z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-          </header>
-
-          {/* Fullscreen Video Viewport Layer */}
-          <div className="size-full flex-1">
-            <PlayerView
-              isMobile={true}
-              channel={room.channel}
-              selfUserId={selfUserId}
-              partnerMedia={sync.partnerMedia}
-              onVideoRef={setVideoElement}
-              onMediaInfo={setLocalMedia}
-              partnerBuffering={sync.partnerBuffering}
-              isStreamMode={roomMode === 'stream'}
-              streamSource={call.isScreenSharing ? call.screenStream : call.remoteStream}
-              isScreenSharing={call.isScreenSharing}
-              streamerName={call.isScreenSharing ? room.self?.name : room.partner?.name ?? 'Partner'}
-              onStopScreenShare={call.stopScreenShare}
-              onShareScreen={call.isScreenShareAvailable ? call.toggleScreenShare : undefined}
-              stats={call.remoteStats}
-              isTheater={true}
-              onToggleTheater={() => setIsTheater((prev) => !prev)}
-              onSyncNow={sync.syncNow}
-              roomCode={roomCode}
-              onReaction={(emoji) => void chat.sendMessage(emoji)}
-              lastReaction={lastReaction}
-              actionToasts={toasts}
-            >
-              {showBubble && (
-                <Suspense fallback={null}>
-                  <FloatingCamBubble
-                    stream={activeCamStream}
-                    partnerName={activeCamName}
-                    isCamOn={activeCamOn}
-                    isMicOn={activeMicOn}
-                    stats={call.remoteStats}
-                    onExpand={() => {
-                      setIsLandscapeChatOpen(true);
-                    }}
-                    onClose={() => setIsBubbleHidden(true)}
-                  />
-                </Suspense>
-              )}
-            </PlayerView>
-          </div>
-        </div>
-
-        {/* Translucent Slide-over Companion Chat Drawer */}
-        {isLandscapeChatOpen && (
-          <aside className="relative w-[310px] h-full flex flex-col bg-[#0F0D12]/95 backdrop-blur-xl border-l border-[#332C3D] z-40 transition-all duration-300 pr-safe" id="chat-drawer">
-            <div className="px-3.5 py-2.5 bg-[#1A1720]/70 border-b border-[#332C3D]/60 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h2 className="text-xs font-bold text-[#F4EFF6] tracking-tight">Duet Chat</h2>
-                <div className="flex items-center gap-1 text-[#8AE2B6] text-[10px]">
-                  <span className="size-1.5 rounded-full bg-[#8AE2B6] animate-pulse" />
-                  <span>{room.partner?.name ? `${room.partner.name} watching` : 'In room'}</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsLandscapeChatOpen(false)}
-                className="size-6 rounded-full bg-[#241F2D] text-[#A79FB3] hover:text-[#F4EFF6] flex items-center justify-center active:scale-90 transition-all cursor-pointer"
-                id="close-chat-btn"
-                aria-label="Close Chat"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
-                  <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Chat View Component */}
-            <div className="flex-1 overflow-hidden">
-              <ChatView
-                messages={chat.messages}
-                selfUserId={room.self?.userId ?? null}
-                partnerName={room.partner?.name}
-                onSendMessage={chat.sendMessage}
-              />
-            </div>
-          </aside>
-        )}
-      </main>
-    );
-  }
-
   return (
-    <main className={`flex min-h-dvh w-full flex-col cinema-glow overflow-x-hidden ${isMobile ? 'pt-16 pb-20' : 'pt-14 pb-6'}`}>
-      <RoomHeader
-        isMobile={isMobile}
-        roomCode={roomCode}
-        status={room.status}
-        self={room.self}
-        partner={room.partner}
-        partnerStatus={room.partnerStatus}
-        drift={sync.drift}
-        onSyncNow={sync.syncNow}
-        onLeave={handleLeave}
-        chatOpen={chat.isOpen}
-        onToggleChat={() => chat.setIsOpen((prev) => !prev)}
-        unreadCount={chat.unreadCount}
-        stats={call.remoteStats}
-        isStreamMode={roomMode === 'stream'}
-        isCamOn={call.isCamOn}
-        isMicOn={call.isMicOn}
-        onToggleCam={call.toggleCam}
-        onToggleMic={call.toggleMic}
-        activeNavTab={isTheater ? 'theater' : activeNavTab}
-        onNavTabChange={handleNavTabChange}
-        onToggleSyncLab={() => setIsSyncLabOpen((prev) => !prev)}
-      />
+    <main
+      className={
+        isLandscape
+          ? 'fixed inset-0 z-50 flex flex-row bg-[#0F0D12] overflow-hidden select-none'
+          : `flex min-h-dvh w-full flex-col cinema-glow overflow-x-hidden ${isMobile ? 'pt-16 pb-20' : 'pt-14 pb-6'}`
+      }
+    >
+      {!isLandscape && (
+        <RoomHeader
+          isMobile={isMobile}
+          roomCode={roomCode}
+          status={room.status}
+          self={room.self}
+          partner={room.partner}
+          partnerStatus={room.partnerStatus}
+          drift={sync.drift}
+          onSyncNow={sync.syncNow}
+          onLeave={handleLeave}
+          chatOpen={chat.isOpen}
+          onToggleChat={() => chat.setIsOpen((prev) => !prev)}
+          unreadCount={chat.unreadCount}
+          stats={call.remoteStats}
+          isStreamMode={roomMode === 'stream'}
+          isCamOn={call.isCamOn}
+          isMicOn={call.isMicOn}
+          onToggleCam={call.toggleCam}
+          onToggleMic={call.toggleMic}
+          activeNavTab={isTheater ? 'theater' : activeNavTab}
+          onNavTabChange={handleNavTabChange}
+          onToggleSyncLab={() => setIsSyncLabOpen((prev) => !prev)}
+        />
+      )}
 
-      <div className={`w-full ${isTheater ? 'p-0 gap-0' : 'px-3 sm:px-4 lg:px-6 py-2 gap-3'} flex-1 flex flex-col`}>
-        {room.status === 'error' && room.error && (
+      <div
+        className={
+          isLandscape
+            ? 'relative flex-1 h-full overflow-hidden flex flex-row'
+            : `w-full ${isTheater ? 'p-0 gap-0' : 'px-3 sm:px-4 lg:px-6 py-2 gap-3'} flex-1 flex flex-col`
+        }
+      >
+        {!isLandscape && room.status === 'error' && room.error && (
           <div role="alert" className="flex items-center justify-between rounded-lg border border-danger/40 bg-danger/10 p-3 text-xs text-danger">
             <span>{room.error}</span>
             <button
@@ -554,7 +389,7 @@ function RoomSession({
           </div>
         )}
 
-        {room.partnerStatus === 'left' && (
+        {!isLandscape && room.partnerStatus === 'left' && (
           <div
             role="status"
             className="flex items-center gap-2 rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs text-warn shadow-xs"
@@ -565,73 +400,225 @@ function RoomSession({
           </div>
         )}
 
-      {/* MOBILE THEATER LAYOUT (< 1024px) */}
-      {isMobile ? (
-        <div className="flex flex-col gap-3 pb-20">
-          {/* Mobile Video Deck (rounded-xl) */}
-          <div className="w-full">
-            <PlayerView
-              isMobile={isMobile}
-              channel={room.channel}
-              selfUserId={selfUserId}
-              partnerMedia={sync.partnerMedia}
-              onVideoRef={setVideoElement}
-              onMediaInfo={setLocalMedia}
-              partnerBuffering={sync.partnerBuffering}
-              isStreamMode={roomMode === 'stream'}
-              streamSource={call.isScreenSharing ? call.screenStream : call.remoteStream}
-              isScreenSharing={call.isScreenSharing}
-              streamerName={
-                call.isScreenSharing || streamerId === selfUserId
-                  ? room.self?.name
-                  : room.partner?.name ?? 'Partner'
-              }
-              onStopScreenShare={call.stopScreenShare}
-              onShareScreen={call.isScreenShareAvailable ? call.toggleScreenShare : undefined}
-              stats={call.remoteStats}
-              isTheater={isTheater}
-              onToggleTheater={() => setIsTheater((prev) => !prev)}
-              onSyncNow={sync.syncNow}
-              roomCode={roomCode}
-              onReaction={(emoji) => void chat.sendMessage(emoji)}
-              lastReaction={lastReaction}
-              actionToasts={toasts}
-            >
-              {showBubble && (
-                <Suspense fallback={null}>
-                  <FloatingCamBubble
-                    stream={activeCamStream}
-                    partnerName={activeCamName}
-                    isCamOn={activeCamOn}
-                    isMicOn={activeMicOn}
-                    stats={call.remoteStats}
-                    onExpand={() => {
-                      setMobileTab('call');
-                      setIsTheater(false);
-                    }}
-                    onClose={() => setIsBubbleHidden(true)}
-                  />
-                </Suspense>
-              )}
-            </PlayerView>
-          </div>
+        {/* Unified Stage Container: keeps PlayerView at a fixed React tree path across Landscape, Mobile, and Desktop */}
+        <div
+          className={
+            isLandscape
+              ? 'relative flex-1 h-full overflow-hidden flex flex-col justify-between'
+              : isMobile
+                ? 'flex flex-col gap-3 pb-20'
+                : 'w-full max-w-[1880px] mx-auto flex flex-col gap-3 flex-1'
+          }
+        >
+          {isLandscape && (
+            <header className="absolute top-0 inset-x-0 z-30 pt-safe px-4 pt-2.5 flex items-center justify-between pointer-events-auto">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleLeave}
+                  className="size-8 rounded-full bg-[#1A1720]/80 backdrop-blur-md border border-[#332C3D]/60 flex items-center justify-center text-[#F4EFF6] active:scale-95 transition-all shadow-md cursor-pointer"
+                  title="Leave Room"
+                  aria-label="Leave Room"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+                    <path fillRule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clipRule="evenodd" />
+                  </svg>
+                </button>
 
-          {showMismatch && sync.partnerMedia && localMedia && (
-            <MediaMismatchDialog
-              localMedia={localMedia}
-              partnerMedia={sync.partnerMedia}
-              onDismiss={() => setDismissedHash(sync.partnerMedia?.hash ?? null)}
-              onChangeFile={() => {
-                setLocalMedia(null);
-                setDismissedHash(null);
-              }}
-            />
+                <div className="flex items-center gap-2 bg-[#1A1720]/80 backdrop-blur-md border border-[#332C3D]/70 px-2.5 py-1 rounded-full shadow-lg">
+                  <div className="relative size-5 rounded-full p-[1.5px] bg-gradient-to-tr from-[#E8A0BF] via-[#F2C57C] to-[#E8A0BF] flex items-center justify-center shadow-[0_0_8px_rgba(232,160,191,0.4)]">
+                    <div className="size-full rounded-full bg-[#0F0D12] flex items-center justify-center">
+                      <span className="text-[#E8A0BF] text-[10px] font-bold">▶</span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold tracking-tight text-[#F4EFF6]">Duet</span>
+                  <span className="text-[#332C3D] font-mono text-[10px]">|</span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(roomCode);
+                        showToast('Room code copied!');
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    className="bg-[#241F2D] text-[#F2C57C] font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded tracking-wider border border-[#F2C57C]/20 cursor-pointer hover:underline"
+                  >
+                    [ {roomCode} ]
+                  </button>
+                  <div className="flex items-center gap-1.5 ml-0.5">
+                    <span className="relative flex size-2">
+                      <span className="animate-ping absolute inline-flex size-full rounded-full bg-[#8AE2B6] opacity-75" />
+                      <span className="relative inline-flex rounded-full size-2 bg-[#8AE2B6]" />
+                    </span>
+                    <span className="text-[11px] font-medium text-[#F4EFF6]/90 truncate max-w-[120px]">
+                      {room.partner?.name ?? 'Waiting'}
+                      <span className="text-[#A79FB3] text-[10px] ml-1">
+                        ({Math.abs(sync.drift) < 0.05 ? 'In sync' : `${Math.round(Math.abs(sync.drift) * 1000)}ms`})
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right utility actions */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIsLandscapeChatOpen((prev) => !prev)}
+                  className={`h-7 px-2.5 rounded-full border text-[11px] font-semibold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${
+                    isLandscapeChatOpen
+                      ? 'bg-[#E8A0BF] text-[#370923] border-[#E8A0BF]'
+                      : 'bg-[#E8A0BF]/15 border-[#E8A0BF]/40 text-[#E8A0BF] hover:bg-[#E8A0BF]/25'
+                  }`}
+                  id="toggle-chat-btn"
+                >
+                  <span>Chat</span>
+                  {chat.unreadCount > 0 && (
+                    <span className="bg-[#E8A0BF] text-[#370923] font-mono text-[9px] font-bold rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center leading-none">
+                      {chat.unreadCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleFullscreen(videoElement?.parentElement ?? document.documentElement, videoElement);
+                  }}
+                  className="size-7 rounded-full bg-[#1A1720]/80 backdrop-blur-md border border-[#332C3D]/60 flex items-center justify-center text-[#A79FB3] hover:text-[#F4EFF6] active:scale-95 transition-all cursor-pointer"
+                  title="Fullscreen"
+                  aria-label="Fullscreen"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
+                    <path fillRule="evenodd" d="M3.25 3.5A.75.75 0 0 0 2.5 4.25v3a.75.75 0 0 0 1.5 0V5.5h1.75a.75.75 0 0 0 0-1.5H3.25Zm13.5 0h-2.5a.75.75 0 0 0 0 1.5h1.75v1.75a.75.75 0 0 0 1.5 0v-3a.75.75 0 0 0-.75-.75Zm0 13a.75.75 0 0 0 .75-.75v-3a.75.75 0 0 0-1.5 0v1.75h-1.75a.75.75 0 0 0 0 1.5h2.5Zm-13.5 0h2.5a.75.75 0 0 0 0-1.5H4V13.25a.75.75 0 0 0-1.5 0v3c0 .414.336.75.75.75Z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </header>
           )}
 
-          {/* Mobile Bottom Sheet (Chat, Call & Settings) per Stitch Mobile Design */}
-          <div className="flex flex-col gap-3 rounded-2xl border border-outline/30 bg-surface-container p-3 sm:p-4 shadow-xl">
-            {/* Grab handle bar */}
-            <div className="w-12 h-1 rounded-full bg-outline/60 mx-auto" />
+          <div
+            className={
+              isLandscape
+                ? 'size-full flex-1'
+                : isMobile
+                  ? 'w-full'
+                  : `grid grid-cols-1 gap-4 items-start ${
+                      !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:grid-cols-12' : ''
+                    }`
+            }
+          >
+            <div
+              className={
+                isLandscape
+                  ? 'size-full'
+                  : isMobile
+                    ? 'w-full flex flex-col gap-3'
+                    : `relative flex flex-col gap-3 min-w-0 ${
+                        !isTheater && (chat.isOpen || call.connectionState !== 'idle')
+                          ? 'lg:col-span-8 xl:col-span-9'
+                          : 'lg:col-span-12'
+                      }`
+              }
+            >
+              <PlayerView
+                isMobile={isMobile || isLandscape}
+                isLandscape={isLandscape}
+                channel={room.channel}
+                selfUserId={selfUserId}
+                partnerMedia={sync.partnerMedia}
+                onVideoRef={setVideoElement}
+                onMediaInfo={setLocalMedia}
+                partnerBuffering={sync.partnerBuffering}
+                isStreamMode={roomMode === 'stream'}
+                streamSource={call.isScreenSharing ? call.screenStream : call.remoteStream}
+                isScreenSharing={call.isScreenSharing}
+                streamerName={
+                  call.isScreenSharing || streamerId === selfUserId
+                    ? room.self?.name
+                    : room.partner?.name ?? 'Partner'
+                }
+                onStopScreenShare={call.stopScreenShare}
+                onShareScreen={call.isScreenShareAvailable ? call.toggleScreenShare : undefined}
+                stats={call.remoteStats}
+                isTheater={isTheater || isLandscape}
+                onToggleTheater={() => setIsTheater((prev) => !prev)}
+                onSyncNow={sync.syncNow}
+                roomCode={roomCode}
+                onReaction={(emoji) => void chat.sendMessage(emoji)}
+                lastReaction={lastReaction}
+                actionToasts={toasts}
+              >
+                {showBubble && (
+                  <Suspense fallback={null}>
+                    <FloatingCamBubble
+                      stream={activeCamStream}
+                      partnerName={activeCamName}
+                      isCamOn={activeCamOn}
+                      isMicOn={activeMicOn}
+                      stats={call.remoteStats}
+                      onExpand={() => {
+                        if (isLandscape) {
+                          setIsLandscapeChatOpen(true);
+                        } else {
+                          setMobileTab('call');
+                          setIsTheater(false);
+                        }
+                      }}
+                      onClose={() => setIsBubbleHidden(true)}
+                    />
+                  </Suspense>
+                )}
+              </PlayerView>
+
+              {!isLandscape && showMismatch && sync.partnerMedia && localMedia && (
+                <MediaMismatchDialog
+                  localMedia={localMedia}
+                  partnerMedia={sync.partnerMedia}
+                  onDismiss={() => setDismissedHash(sync.partnerMedia?.hash ?? null)}
+                  onChangeFile={() => {
+                    setLocalMedia(null);
+                    setDismissedHash(null);
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Desktop Companion Sidebar (3-4 columns of 12) */}
+            {!isLandscape && !isMobile && !isTheater && (chat.isOpen || call.connectionState !== 'idle') && (
+              <aside className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3 w-full shrink-0">
+                <Suspense fallback={<div className="flex min-h-24 items-center justify-center text-xs text-muted">Loading call…</div>}>
+                  <CallSection
+                    call={call}
+                    partnerName={room.partner?.name}
+                    selfName={room.self?.name}
+                  />
+                </Suspense>
+
+                {chat.isOpen && (
+                  <div className="flex-1 min-h-[340px] max-h-[calc(100vh-220px)] w-full flex flex-col">
+                    <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
+                      <ChatView
+                        messages={chat.messages}
+                        selfUserId={room.self?.userId ?? null}
+                        partnerName={room.partner?.name}
+                        onSendMessage={chat.sendMessage}
+                        onClose={() => chat.setIsOpen(false)}
+                      />
+                    </Suspense>
+                  </div>
+                )}
+              </aside>
+            )}
+          </div>
+
+          {!isLandscape && isMobile && (
+            <>
+              {/* Mobile Bottom Sheet (Chat, Call & Settings) per Stitch Mobile Design */}
+              <div className="flex flex-col gap-3 rounded-2xl border border-outline/30 bg-surface-container p-3 sm:p-4 shadow-xl">
+                {/* Grab handle bar */}
+                <div className="w-12 h-1 rounded-full bg-outline/60 mx-auto" />
 
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
@@ -985,109 +972,11 @@ function RoomSession({
               <span className="text-[10px]">Settings</span>
             </button>
           </nav>
-        </div>
-      ) : (
-        /* DESKTOP THEATER GRID (>= 1024px) */
-        <div className="w-full max-w-[1880px] mx-auto flex flex-col gap-3 flex-1">
-          {/* Main Asymmetric 12-Column Grid */}
-          <div
-            className={`grid grid-cols-1 gap-4 items-start ${
-              !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:grid-cols-12' : ''
-            }`}
-          >
-            {/* Left Cinema Stage (8-9 columns in 12-column layout) */}
-            <div
-              className={`relative flex flex-col gap-3 min-w-0 ${
-                !isTheater && (chat.isOpen || call.connectionState !== 'idle') ? 'lg:col-span-8 xl:col-span-9' : 'lg:col-span-12'
-              }`}
-            >
-              <PlayerView
-                channel={room.channel}
-                selfUserId={selfUserId}
-                partnerMedia={sync.partnerMedia}
-                onVideoRef={setVideoElement}
-                onMediaInfo={setLocalMedia}
-                partnerBuffering={sync.partnerBuffering}
-                isStreamMode={roomMode === 'stream'}
-                streamSource={call.isScreenSharing ? call.screenStream : call.remoteStream}
-                isScreenSharing={call.isScreenSharing}
-                streamerName={
-                  call.isScreenSharing || streamerId === selfUserId
-                    ? room.self?.name
-                    : room.partner?.name ?? 'Partner'
-                }
-                onStopScreenShare={call.stopScreenShare}
-                onShareScreen={call.isScreenShareAvailable ? call.toggleScreenShare : undefined}
-                stats={call.remoteStats}
-                isTheater={isTheater}
-                onToggleTheater={() => setIsTheater((prev) => !prev)}
-                onSyncNow={sync.syncNow}
-                roomCode={roomCode}
-                onReaction={(emoji) => void chat.sendMessage(emoji)}
-                lastReaction={lastReaction}
-                actionToasts={toasts}
-              >
-                {showBubble && (
-                  <Suspense fallback={null}>
-                    <FloatingCamBubble
-                      stream={activeCamStream}
-                      partnerName={activeCamName}
-                      isCamOn={activeCamOn}
-                      isMicOn={activeMicOn}
-                      stats={call.remoteStats}
-                      onExpand={() => {
-                        setMobileTab('call');
-                        setIsTheater(false);
-                      }}
-                      onClose={() => setIsBubbleHidden(true)}
-                    />
-                  </Suspense>
-                )}
-              </PlayerView>
+            </>
+          )}
 
-              {showMismatch && sync.partnerMedia && localMedia && (
-                <MediaMismatchDialog
-                  localMedia={localMedia}
-                  partnerMedia={sync.partnerMedia}
-                  onDismiss={() => setDismissedHash(sync.partnerMedia?.hash ?? null)}
-                  onChangeFile={() => {
-                    setLocalMedia(null);
-                    setDismissedHash(null);
-                  }}
-                />
-              )}
-            </div>
-
-            {/* Desktop Companion Sidebar (3-4 columns of 12) */}
-            {!isTheater && (chat.isOpen || call.connectionState !== 'idle') && (
-              <aside className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3 w-full shrink-0">
-                <Suspense fallback={<div className="flex min-h-24 items-center justify-center text-xs text-muted">Loading call…</div>}>
-                  <CallSection
-                    call={call}
-                    partnerName={room.partner?.name}
-                    selfName={room.self?.name}
-                  />
-                </Suspense>
-
-                {chat.isOpen && (
-                  <div className="flex-1 min-h-[340px] max-h-[calc(100vh-220px)] w-full flex flex-col">
-                    <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
-                      <ChatView
-                        messages={chat.messages}
-                        selfUserId={room.self?.userId ?? null}
-                        partnerName={room.partner?.name}
-                        onSendMessage={chat.sendMessage}
-                        onClose={() => chat.setIsOpen(false)}
-                      />
-                    </Suspense>
-                  </div>
-                )}
-              </aside>
-            )}
-          </div>
-
-          {/* Sync Lab HUD (Toggled via Sync Lab in header) */}
-          {isSyncLabOpen && (
+          {/* Sync Lab HUD (Toggled via Sync Lab in header on desktop) */}
+          {!isLandscape && !isMobile && isSyncLabOpen && (
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-4 p-4 rounded-xl bg-surface-container-low border border-outline/20 flex flex-col gap-1.5 font-mono-sm text-xs shadow-xs">
                 <div className="flex items-center justify-between text-muted border-b border-outline/20 pb-2">
@@ -1137,93 +1026,133 @@ function RoomSession({
             </div>
           )}
         </div>
-      )}
+
+        {/* Translucent Slide-over Companion Chat Drawer (Landscape) */}
+        {isLandscape && isLandscapeChatOpen && (
+          <aside className="relative w-[310px] h-full flex flex-col bg-[#0F0D12]/95 backdrop-blur-xl border-l border-[#332C3D] z-40 transition-all duration-300 pr-safe" id="chat-drawer">
+            <div className="px-3.5 py-2.5 bg-[#1A1720]/70 border-b border-[#332C3D]/60 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-bold text-[#F4EFF6] tracking-tight">Duet Chat</h2>
+                <div className="flex items-center gap-1 text-[#8AE2B6] text-[10px]">
+                  <span className="size-1.5 rounded-full bg-[#8AE2B6] animate-pulse" />
+                  <span>{room.partner?.name ? `${room.partner.name} watching` : 'In room'}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLandscapeChatOpen(false)}
+                className="size-6 rounded-full bg-[#241F2D] text-[#A79FB3] hover:text-[#F4EFF6] flex items-center justify-center active:scale-90 transition-all cursor-pointer"
+                id="close-chat-btn"
+                aria-label="Close Chat"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-3.5">
+                  <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-hidden">
+              <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-muted">Loading chat…</div>}>
+                <ChatView
+                  messages={chat.messages}
+                  selfUserId={room.self?.userId ?? null}
+                  partnerName={room.partner?.name}
+                  onSendMessage={chat.sendMessage}
+                />
+              </Suspense>
+            </div>
+          </aside>
+        )}
 
       {/* Companion Synchronicity Status Strip & Footer */}
-      <footer className="flex flex-col gap-2.5 border-t border-outline/30 pt-2.5 text-xs text-muted mt-auto">
-        <div className="hidden lg:flex items-center justify-between" data-testid="desktop-status-strip">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
-              <span className="font-semibold text-text">Sync:</span>
-              <span className="size-2 rounded-full bg-tertiary" />
-              <span className="font-mono-sm text-[11px]">
-                {Math.abs(sync.drift) > 0.05
-                  ? `${Math.round(Math.abs(sync.drift) * 1000)}ms drift`
-                  : 'Synchronized'}
-              </span>
-            </div>
-            <span>·</span>
-            <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
-              <span className="font-semibold text-text">Quality:</span>
-              <span className="font-mono-sm text-[11px]">
-                {call.remoteStats && call.remoteStats.width
-                  ? `${call.remoteStats.width}×${call.remoteStats.height}`
-                  : '1080p source'}
-              </span>
-            </div>
-            <span>·</span>
-            <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
-              <span className="size-1.5 rounded-full bg-tertiary" />
-              <span className="text-[11px] font-medium text-text">P2P Mesh Active</span>
-            </div>
-            <span>·</span>
-            <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
-              <span className="font-semibold text-text">Partner:</span>
-              <span
-                className={`size-2 rounded-full ${
-                  room.partner
-                    ? 'bg-tertiary'
-                    : room.partnerStatus === 'left'
-                      ? 'bg-warn'
-                      : 'bg-muted motion-safe:animate-pulse'
-                }`}
-              />
-              <span className="font-medium">
-                {room.partner ? 'Connected' : room.partnerStatus === 'left' ? 'Left' : 'Awaiting peer…'}
-              </span>
-            </div>
-            <span className="hidden xl:inline-flex items-center gap-1 text-[11px] text-muted">
+      {!isLandscape && (
+        <footer className="flex flex-col gap-2.5 border-t border-outline/30 pt-2.5 text-xs text-muted mt-auto">
+          <div className="hidden lg:flex items-center justify-between" data-testid="desktop-status-strip">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
+                <span className="font-semibold text-text">Sync:</span>
+                <span className="size-2 rounded-full bg-tertiary" />
+                <span className="font-mono-sm text-[11px]">
+                  {Math.abs(sync.drift) > 0.05
+                    ? `${Math.round(Math.abs(sync.drift) * 1000)}ms drift`
+                    : 'Synchronized'}
+                </span>
+              </div>
               <span>·</span>
-              <span className="text-primary font-mono-sm">🔒 Encrypted Zero-Knowledge Channel</span>
-            </span>
+              <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
+                <span className="font-semibold text-text">Quality:</span>
+                <span className="font-mono-sm text-[11px]">
+                  {call.remoteStats && call.remoteStats.width
+                    ? `${call.remoteStats.width}×${call.remoteStats.height}`
+                    : '1080p source'}
+                </span>
+              </div>
+              <span>·</span>
+              <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
+                <span className="size-1.5 rounded-full bg-tertiary" />
+                <span className="text-[11px] font-medium text-text">P2P Mesh Active</span>
+              </div>
+              <span>·</span>
+              <div className="flex items-center gap-1.5 rounded-full border border-outline/30 bg-surface-container px-2.5 py-0.5">
+                <span className="font-semibold text-text">Partner:</span>
+                <span
+                  className={`size-2 rounded-full ${
+                    room.partner
+                      ? 'bg-tertiary'
+                      : room.partnerStatus === 'left'
+                        ? 'bg-warn'
+                        : 'bg-muted motion-safe:animate-pulse'
+                  }`}
+                />
+                <span className="font-medium">
+                  {room.partner ? 'Connected' : room.partnerStatus === 'left' ? 'Left' : 'Awaiting peer…'}
+                </span>
+              </div>
+              <span className="hidden xl:inline-flex items-center gap-1 text-[11px] text-muted">
+                <span>·</span>
+                <span className="text-primary font-mono-sm">🔒 Encrypted Zero-Knowledge Channel</span>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] text-muted">
+              <span>Shortcuts:</span>
+              <span className="inline-flex items-center gap-1">
+                <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">Space</kbd>
+                <span>play/pause</span>
+              </span>
+              <span>·</span>
+              <span className="inline-flex items-center gap-1">
+                <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">← →</kbd>
+                <span>5s</span>
+              </span>
+              <span>·</span>
+              <span className="inline-flex items-center gap-1">
+                <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">F</kbd>
+                <span>fullscreen</span>
+              </span>
+              <span>·</span>
+              <span className="inline-flex items-center gap-1">
+                <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">C</kbd>
+                <span>chat</span>
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] text-muted">
-            <span>Shortcuts:</span>
-            <span className="inline-flex items-center gap-1">
-              <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">Space</kbd>
-              <span>play/pause</span>
-            </span>
-            <span>·</span>
-            <span className="inline-flex items-center gap-1">
-              <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">← →</kbd>
-              <span>5s</span>
-            </span>
-            <span>·</span>
-            <span className="inline-flex items-center gap-1">
-              <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">F</kbd>
-              <span>fullscreen</span>
-            </span>
-            <span>·</span>
-            <span className="inline-flex items-center gap-1">
-              <kbd className="rounded border border-outline/40 bg-surface-container px-1.5 py-0.2 font-mono-sm text-[10px] text-text">C</kbd>
-              <span>chat</span>
-            </span>
+          {/* Stitch Cinema Footer Bar */}
+          <div className="text-center font-mono-sm text-[10px] uppercase tracking-widest text-muted/60 pt-2 border-t border-outline/20">
+            DUET SECURE P2P WEBRTC // LATENCY &lt; 28MS | AUDIO 48KHZ OPUS | DRIFT {Math.abs(sync.drift).toFixed(2)}s | DUET CINEMA v2.4
           </div>
-        </div>
+        </footer>
+      )}
 
-        {/* Stitch Cinema Footer Bar */}
-        <div className="text-center font-mono-sm text-[10px] uppercase tracking-widest text-muted/60 pt-2 border-t border-outline/20">
-          DUET SECURE P2P WEBRTC // LATENCY &lt; 28MS | AUDIO 48KHZ OPUS | DRIFT {Math.abs(sync.drift).toFixed(2)}s | DUET CINEMA v2.4
-        </div>
-      </footer>
-
-      <SyncDevOverlay
-        sync={sync}
-        roomCode={roomCode}
-        isOpen={isSyncLabOpen}
-        onToggle={() => setIsSyncLabOpen((prev) => !prev)}
-      />
+      {!isLandscape && (
+        <SyncDevOverlay
+          sync={sync}
+          roomCode={roomCode}
+          isOpen={isSyncLabOpen}
+          onToggle={() => setIsSyncLabOpen((prev) => !prev)}
+        />
+      )}
     </div>
 
     {/* Cinema Settings Modal */}

@@ -49,6 +49,7 @@ export interface PlayerViewProps {
   actionToasts?: Array<{ id: string; message: string }>;
   onShareScreen?: () => void;
   isMobile?: boolean;
+  isLandscape?: boolean;
 }
 
 export function PlayerView({
@@ -74,6 +75,7 @@ export function PlayerView({
   actionToasts,
   onShareScreen,
   isMobile = false,
+  isLandscape = false,
 }: PlayerViewProps = {}) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
@@ -208,16 +210,18 @@ export function PlayerView({
   };
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className={`flex flex-col gap-3 ${isLandscape ? 'size-full' : ''}`}>
       {/* 16:9 Video Canvas Box with Ambient Gradients */}
       <div
         ref={setContainer}
         tabIndex={-1}
         className={`group relative w-full ${
-          isTheater
-            ? 'h-[calc(100vh-80px)] max-h-none rounded-none border-none'
-            : 'aspect-video min-h-[300px] sm:min-h-[380px] lg:min-h-[460px] xl:min-h-[540px] max-h-[calc(100vh-150px)] rounded-2xl border border-outline/40 shadow-2xl'
-        } overflow-hidden bg-black outline-none transition-all duration-200`}
+          isLandscape
+            ? 'h-full max-h-none rounded-none border-none'
+            : isTheater
+              ? 'h-[calc(100vh-80px)] max-h-none rounded-none border-none'
+              : 'aspect-video min-h-[300px] sm:min-h-[380px] lg:min-h-[460px] xl:min-h-[540px] max-h-[calc(100vh-150px)] rounded-2xl border border-outline/40 shadow-2xl'
+        } [&:fullscreen]:h-full [&:fullscreen]:max-h-none [&:fullscreen]:rounded-none [&:fullscreen]:border-none overflow-hidden bg-black outline-none transition-all duration-200`}
       >
         {/* Top/bottom ambient gradients */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/70 via-black/20 to-transparent z-10" />
